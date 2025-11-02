@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MRV Stores - Credit Manager</title>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="apple-touch-icon" href="https://i.imgur.com/QOMvGBE.png">
+    <link rel="icon" href="https://i.imgur.com/QOMvGBE.png">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="MRV STORES">
+    
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // 🔥 FIREBASE CONFIGURATION - ADD YOUR CREDENTIALS HERE
+        const DEFAULT_FIREBASE_CONFIG = {
+            apiKey: "YOUR_API_KEY_HERE",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        // Lucide React Icons as inline SVG
+        const Icon = ({ name, className = "w-6 h-6", ...props }) => {
+            const icons = {
+                Plus: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>,
+                Users: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>,
+                TrendingUp: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>,
+                ShoppingCart: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
+                DollarSign: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+                Trash2: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>,
+                Eye: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>,
+                EyeOff: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>,
+                Download: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>,
+                Upload: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>,
+                Settings: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+                Cloud: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>,
+                Bell: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>,
+                Edit2: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>,
+            };
+            return icons[name] || null;
+        };
+
+        const MRVStoresApp = () => {
+            const [customers, setCustomers] = useState([]);
+            const [selectedCustomer, setSelectedCustomer] = useState(null);
+            const [showAddCustomer, setShowAddCustomer] = useState(false);
+            const [showAddTransaction, setShowAddTransaction] = useState(false);
+            const [activeTab, setActiveTab] = useState('customers');
+            const [hideSensitive, setHideSensitive] = useState(false);
+            const [showSettings, setShowSettings] = useState(false);
+            const [firebaseConfigured, setFirebaseConfigured] = useState(false);
+            const [syncStatus, setSyncStatus] = useState('disconnected');
+            const [database, setDatabase] = useState(null);
+            const [editingTransaction, setEditingTransaction] = useState(null);
+
+            const [firebaseConfig, setFirebaseConfig] = useState({
+                  apiKey: "AIzaSyDK6yValXuea-QwyDGnSysqVBoOAmCQ_SI",
+                    authDomain: "finance-tracker-b41ee.firebaseapp.com",
+                    databaseURL: "https://finance-tracker-b41ee-default-rtdb.asia-southeast1.firebasedatabase.app",
+                    projectId: "finance-tracker-b41ee",
+                    storageBucket: "finance-tracker-b41ee.firebasestorage.app",
+                    messagingSenderId: "601547033779",
+                    appId: ""
+            });
+
+            const [newCustomer, setNewCustomer] = useState({
+                name: '',
+                mobile: '',
+                email: ''
+            });
+
+            const [newTransaction, setNewTransaction] = useState({
+                type: 'credit',
+                amount: '',
+                description: '',
+                date: new Date().toISOString().split('T')[0]
+            });
+
+            useEffect(() => {
+                loadFirebaseConfig();
+            }, []);
+
+            const loadFirebaseConfig = () => {
+                if (DEFAULT_FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY_HERE") {
+                    setFirebaseConfig(DEFAULT_FIREBASE_CONFIG);
+                    initializeFirebase(DEFAULT_FIREBASE_CONFIG);
+                    return;
+                }
+                
+                const savedConfig = localStorage.getItem('firebaseConfig');
+                if (savedConfig) {
+                    const config = JSON.parse(savedConfig);
+                    setFirebaseConfig(config);
+                    initializeFirebase(config);
+                }
+            };
+
+            const initializeFirebase = (config) => {
+                try {
+                    if (!firebase.apps.length) {
+                        firebase.initializeApp(config);
+                    }
+                    const db = firebase.database();
+                    setDatabase(db);
+                    setFirebaseConfigured(true);
+                    setSyncStatus('connected');
+                    loadDataFromFirebase(db);
+                } catch (error) {
+                    console.error('Firebase initialization error:', error);
+                    setSyncStatus('error');
+                }
+            };
+
+            const saveFirebaseConfig = () => {
+                if (!firebaseConfig.apiKey || !firebaseConfig.databaseURL) {
+                    alert('Please fill in at least API Key and Database URL');
+                    return;
+                }
+                localStorage.setItem('firebaseConfig', JSON.stringify(firebaseConfig));
+                initializeFirebase(firebaseConfig);
+                setShowSettings(false);
+            };
+
+            const loadDataFromFirebase = (db) => {
+                const customersRef = db.ref('customers');
+                customersRef.on('value', (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        const customersList = Object.keys(data).map(key => ({
+                            ...data[key],
+                            id: key,
+                            transactions: data[key].transactions || []
+                        }));
+                        setCustomers(customersList);
+                        setSyncStatus('synced');
+                    }
+                });
+            };
+
+            const saveDataToFirebase = async (updatedCustomers) => {
+                if (!database) return;
+                
+                try {
+                    setSyncStatus('syncing');
+                    const customersRef = database.ref('customers');
+                    const customersObj = {};
+                    updatedCustomers.forEach(customer => {
+                        customersObj[customer.id] = customer;
+                    });
+                    await customersRef.set(customersObj);
+                    setSyncStatus('synced');
+                } catch (error) {
+                    console.error('Error saving to Firebase:', error);
+                    setSyncStatus('error');
+                }
+            };
+
+            const exportData = () => {
+                const dataStr = JSON.stringify(customers, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(dataBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `mrv-stores-data-${new Date().toISOString().split('T')[0]}.json`;
+                link.click();
+            };
+
+            const importData = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        try {
+                            const importedData = JSON.parse(event.target.result);
+                            setCustomers(importedData);
+                            if (database) {
+                                saveDataToFirebase(importedData);
+                            }
+                            alert('Data imported successfully!');
+                        } catch (error) {
+                            alert('Error importing data. Please check the file format.');
+                        }
+                    };
+                    reader.readAsText(file);
+                }
+            };
+
+            const addCustomer = () => {
+                if (!newCustomer.name || !newCustomer.mobile) {
+                    alert('Please fill in name and mobile number');
+                    return;
+                }
+
+                const customer = {
+                    id: Date.now().toString(),
+                    ...newCustomer,
+                    balance: 0,
+                    transactions: []
+                };
+
+                const updatedCustomers = [...customers, customer];
+                setCustomers(updatedCustomers);
+                if (database) {
+                    saveDataToFirebase(updatedCustomers);
+                }
+                setNewCustomer({ name: '', mobile: '', email: '' });
+                setShowAddCustomer(false);
+            };
+
+            const addTransaction = () => {
+                if (!newTransaction.amount || !selectedCustomer) {
+                    alert('Please fill in all required fields');
+                    return;
+                }
+
+                const amount = parseFloat(newTransaction.amount);
+                const transaction = {
+                    id: Date.now().toString(),
+                    type: newTransaction.type,
+                    amount: amount,
+                    description: newTransaction.description,
+                    date: newTransaction.date,
+                    timestamp: new Date().toISOString()
+                };
+
+                const updatedCustomers = customers.map(c => {
+                    if (c.id === selectedCustomer.id) {
+                        const newBalance = newTransaction.type === 'credit' 
+                            ? c.balance + amount 
+                            : c.balance - amount;
+                        
+                        const updatedCustomer = {
+                            ...c,
+                            balance: newBalance,
+                            transactions: [...(c.transactions || []), transaction]
+                        };
+
+                        // Send SMS notification
+                        sendTransactionNotification(c, transaction, newBalance);
+                        
+                        setSelectedCustomer(updatedCustomer);
+                        return updatedCustomer;
+                    }
+                    return c;
+                });
+
+                setCustomers(updatedCustomers);
+                if (database) {
+                    saveDataToFirebase(updatedCustomers);
+                }
+                setNewTransaction({
+                    type: 'credit',
+                    amount: '',
+                    description: '',
+                    date: new Date().toISOString().split('T')[0]
+                });
+                setShowAddTransaction(false);
+            };
+
+            const sendTransactionNotification = (customer, transaction, newBalance) => {
+                const now = new Date();
+                const formattedDate = now.toLocaleDateString('ta-LK', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                });
+
+                const transactionType =
+                    transaction.type === 'credit'
+                        ? 'கடன் கொள்வனவு'
+                        : 'கட்டணம்';
+
+                const message =
+            `MRV STORES: ${customer.name}, ${transactionType} Rs.${transaction.amount.toFixed(2)}.
+            நிலுவை: Rs.${newBalance.toFixed(2)} (${formattedDate}).
+            
+            நன்றி - MRV STORES`;
+
+                const smsUrl = `sms:${customer.mobile}?body=${encodeURIComponent(message)}`;
+
+                if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                    window.location.href = smsUrl;
+                } else {
+                    window.open(smsUrl, '_blank');
+                }
+            };
+
+
+
+
+            const updateTransaction = () => {
+                if (!editingTransaction) return;
+
+                const updatedCustomers = customers.map(c => {
+                    if (c.id === selectedCustomer.id) {
+                        const oldTransaction = c.transactions.find(t => t.id === editingTransaction.id);
+                        const oldAmount = oldTransaction.type === 'credit' ? oldTransaction.amount : -oldTransaction.amount;
+                        const newAmount = editingTransaction.type === 'credit' ? parseFloat(editingTransaction.amount) : -parseFloat(editingTransaction.amount);
+                        
+                        const updatedTransactions = c.transactions.map(t => 
+                            t.id === editingTransaction.id ? {...editingTransaction, amount: parseFloat(editingTransaction.amount)} : t
+                        );
+
+                        const newBalance = c.balance - oldAmount + newAmount;
+
+                        const updatedCustomer = {
+                            ...c,
+                            balance: newBalance,
+                            transactions: updatedTransactions
+                        };
+
+                        setSelectedCustomer(updatedCustomer);
+                        return updatedCustomer;
+                    }
+                    return c;
+                });
+
+                setCustomers(updatedCustomers);
+                if (database) {
+                    saveDataToFirebase(updatedCustomers);
+                }
+                setEditingTransaction(null);
+            };
+
+            const deleteTransaction = (transactionId) => {
+                if (!confirm('Are you sure you want to delete this transaction?')) return;
+
+                const updatedCustomers = customers.map(c => {
+                    if (c.id === selectedCustomer.id) {
+                        const transaction = c.transactions.find(t => t.id === transactionId);
+                        const amount = transaction.type === 'credit' ? -transaction.amount : transaction.amount;
+                        
+                        const updatedTransactions = c.transactions.filter(t => t.id !== transactionId);
+                        const newBalance = c.balance + amount;
+
+                        const updatedCustomer = {
+                            ...c,
+                            balance: newBalance,
+                            transactions: updatedTransactions
+                        };
+
+                        setSelectedCustomer(updatedCustomer);
+                        return updatedCustomer;
+                    }
+                    return c;
+                });
+
+                setCustomers(updatedCustomers);
+                if (database) {
+                    saveDataToFirebase(updatedCustomers);
+                }
+            };
+
+           const sendBalanceNotification = (customer) => {
+                const now = new Date();
+                const formattedDate = now.toLocaleString('ta-LK', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true,
+                });
+
+                // short & clean Tamil message (safe for SMS)
+                const message = 
+            `வணக்கம் ${customer.name},
+            ${formattedDate} நிலவரப்படி உங்கள் MRV STORES கணக்கின் நிலுவை: Rs.${customer.balance.toFixed(2)}.
+            நன்றி - MRV STORES`;
+
+                const encodedMessage = encodeURIComponent(message);
+                const smsUrl = `sms:${customer.mobile}?body=${encodedMessage}`;
+
+                if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                    window.location.href = smsUrl;
+                } else {
+                    const confirmed = confirm(
+                        `Send Tamil balance message to ${customer.name}?\n\nBalance: Rs.${customer.balance.toFixed(2)}`
+                    );
+                    if (confirmed) {
+                        window.open(smsUrl, '_blank');
+                    }
+                }
+            };
+
+
+
+            const deleteCustomer = (id) => {
+                if (confirm('Are you sure you want to delete this customer?')) {
+                    const updatedCustomers = customers.filter(c => c.id !== id);
+                    setCustomers(updatedCustomers);
+                    if (database) {
+                        saveDataToFirebase(updatedCustomers);
+                    }
+                    if (selectedCustomer?.id === id) {
+                        setSelectedCustomer(null);
+                    }
+                }
+            };
+
+            const maskText = (text) => {
+                if (!hideSensitive || !text) return text;
+                return '•'.repeat(text.length);
+            };
+
+            const maskAmount = (amount) => {
+                if (!hideSensitive) return `Rs.${amount.toFixed(2)}`;
+                return 'Rs.•••••';
+            };
+
+            const getTotalCredit = () => {
+                return customers.reduce((sum, c) => sum + (c.balance > 0 ? c.balance : 0), 0);
+            };
+
+            const getTotalPayment = () => {
+                return customers.reduce((sum, c) => {
+                    if (!c.transactions) return sum;
+                    return sum + c.transactions.reduce((tSum, t) => 
+                        t.type === 'payment' ? tSum + t.amount : tSum, 0);
+                }, 0);
+            };
+
+            const getSyncStatusColor = () => {
+                switch(syncStatus) {
+                    case 'connected': return 'text-green-500';
+                    case 'synced': return 'text-green-500';
+                    case 'syncing': return 'text-yellow-500';
+                    case 'error': return 'text-red-500';
+                    default: return 'text-gray-400';
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-2 sm:p-4">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+                            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-4 sm:p-6 text-white">
+                                <div className="flex flex-col gap-3">
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
+                                                <Icon name="ShoppingCart" className="w-6 h-6 sm:w-8 sm:h-8" />
+                                                MRV STORES
+                                            </h1>
+                                            <p className="text-blue-100 text-sm sm:text-base mt-1">Grocery & Provisions - Credit Manager</p>
+                                        </div>
+                                        <span className={`flex items-center gap-1 text-xs ${getSyncStatusColor()}`}>
+                                            <Icon name="Cloud" className="w-4 h-4" />
+                                            <span className="hidden sm:inline">
+                                                {syncStatus === 'disconnected' && 'Not Connected'}
+                                                {syncStatus === 'connected' && 'Connected'}
+                                                {syncStatus === 'synced' && 'Synced'}
+                                                {syncStatus === 'syncing' && 'Syncing...'}
+                                                {syncStatus === 'error' && 'Error'}
+                                            </span>
+                                        </span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        <button
+                                            onClick={() => setShowSettings(!showSettings)}
+                                            className="bg-white/20 hover:bg-white/30 p-2 rounded-lg transition-colors"
+                                            title="Firebase Settings"
+                                        >
+                                            <Icon name="Settings" className="w-4 h-4 sm:w-5 sm:h-5" />
+                                        </button>
+                                        <button
+                                            onClick={() => setHideSensitive(!hideSensitive)}
+                                            className="bg-white/20 hover:bg-white/30 p-2 rounded-lg transition-colors"
+                                            title={hideSensitive ? "Show sensitive data" : "Hide sensitive data"}
+                                        >
+                                            <Icon name={hideSensitive ? "EyeOff" : "Eye"} className="w-4 h-4 sm:w-5 sm:h-5" />
+                                        </button>
+                                        <button
+                                            onClick={exportData}
+                                            className="bg-white/20 hover:bg-white/30 p-2 rounded-lg transition-colors"
+                                            title="Export data"
+                                        >
+                                            <Icon name="Download" className="w-4 h-4 sm:w-5 sm:h-5" />
+                                        </button>
+                                        <label className="bg-white/20 hover:bg-white/30 p-2 rounded-lg transition-colors cursor-pointer" title="Import data">
+                                            <Icon name="Upload" className="w-4 h-4 sm:w-5 sm:h-5" />
+                                            <input type="file" accept=".json" onChange={importData} className="hidden" />
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {showSettings && (
+                                <div className="bg-yellow-50 border-b border-yellow-200 p-4 sm:p-6">
+                                    <h3 className="text-lg font-bold text-gray-800 mb-4">Firebase Configuration</h3>
+                                    <div className="grid sm:grid-cols-2 gap-3 mb-4">
+                                        <input
+                                            type="text"
+                                            placeholder="Storage Bucket"
+                                            value={firebaseConfig.storageBucket}
+                                            onChange={(e) => setFirebaseConfig({...firebaseConfig, storageBucket: e.target.value})}
+                                            className="p-2 border rounded text-sm"
+                                        />
+                                        <input
+                                            type="text"
+                                            placeholder="Messaging Sender ID"
+                                            value={firebaseConfig.messagingSenderId}
+                                            onChange={(e) => setFirebaseConfig({...firebaseConfig, messagingSenderId: e.target.value})}
+                                            className="p-2 border rounded text-sm"
+                                        />
+                                        <input
+                                            type="text"
+                                            placeholder="App ID"
+                                            value={firebaseConfig.appId}
+                                            onChange={(e) => setFirebaseConfig({...firebaseConfig, appId: e.target.value})}
+                                            className="p-2 border rounded text-sm"
+                                        /> 
+										<input
+                                            type="text"										
+											placeholder="API Key *"
+                                            value={firebaseConfig.apiKey}
+                                            onChange={(e) => setFirebaseConfig({...firebaseConfig, apiKey: e.target.value})}
+                                            className="p-2 border rounded text-sm"
+                                        />
+                                        <input
+                                            type="text"
+                                            placeholder="Auth Domain"
+                                            value={firebaseConfig.authDomain}
+                                            onChange={(e) => setFirebaseConfig({...firebaseConfig, authDomain: e.target.value})}
+                                            className="p-2 border rounded text-sm"
+                                        />
+                                        <input
+                                            type="text"
+                                            placeholder="Database URL *"
+                                            value={firebaseConfig.databaseURL}
+                                            onChange={(e) => setFirebaseConfig({...firebaseConfig, databaseURL: e.target.value})}
+                                            className="p-2 border rounded text-sm"
+                                        />
+                                        <input
+                                            type="text"
+                                            placeholder="Project ID"
+                                            value={firebaseConfig.projectId}
+                                            onChange={(e) => setFirebaseConfig({...firebaseConfig, projectId: e.target.value})}
+                                            className="p-2 border rounded text-sm"
+                                        />
+                                        
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={saveFirebaseConfig}
+                                            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 text-sm"
+                                        >
+                                            Save & Connect
+                                        </button>
+                                        <button
+                                            onClick={() => setShowSettings(false)}
+                                            className="bg-gray-300 text-gray-700 px-6 py-2 rounded hover:bg-gray-400 text-sm"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                    <p className="text-sm text-gray-600 mt-3">
+                                        Need Firebase credentials? Visit <a href="https://console.firebase.google.com" target="_blank" className="text-blue-600 underline">Firebase Console</a> to create a project.
+                                    </p>
+                                </div>
+                            )}
+
+                            <div className="border-b border-gray-200">
+                                <div className="flex">
+                                    <button
+                                        onClick={() => setActiveTab('customers')}
+                                        className={`px-4 sm:px-6 py-3 font-medium text-sm sm:text-base ${activeTab === 'customers' 
+                                            ? 'border-b-2 border-blue-600 text-blue-600' 
+                                            : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        <Icon name="Users" className="inline w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
+                                        Customers
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab('summary')}
+                                        className={`px-4 sm:px-6 py-3 font-medium text-sm sm:text-base ${activeTab === 'summary' 
+                                            ? 'border-b-2 border-blue-600 text-blue-600' 
+                                            : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        <Icon name="TrendingUp" className="inline w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
+                                        Summary
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="p-3 sm:p-6">
+                                {activeTab === 'customers' && (
+                                    <div className="grid lg:grid-cols-2 gap-4 sm:gap-6">
+                                        <div>
+                                            <div className="flex justify-between items-center mb-4">
+                                                <h2 className="text-lg sm:text-xl font-bold text-gray-800">Customer List</h2>
+                                                <button
+                                                    onClick={() => setShowAddCustomer(!showAddCustomer)}
+                                                    className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm"
+                                                >
+                                                    <Icon name="Plus" className="w-4 h-4 sm:w-5 sm:h-5" />
+                                                    <span className="hidden sm:inline">Add Customer</span>
+                                                    <span className="sm:hidden">Add</span>
+                                                </button>
+                                            </div>
+
+                                            {showAddCustomer && (
+                                                <div className="bg-blue-50 p-3 sm:p-4 rounded-lg mb-4 border border-blue-200">
+                                                    <h3 className="font-semibold mb-3 text-gray-800 text-sm sm:text-base">New Customer</h3>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Customer Name *"
+                                                        value={newCustomer.name}
+                                                        onChange={(e) => setNewCustomer({...newCustomer, name: e.target.value})}
+                                                        className="w-full p-2 border rounded mb-2 text-sm"
+                                                    />
+                                                    <input
+                                                        type="tel"
+                                                        placeholder="Mobile Number *"
+                                                        value={newCustomer.mobile}
+                                                        onChange={(e) => setNewCustomer({...newCustomer, mobile: e.target.value})}
+                                                        className="w-full p-2 border rounded mb-2 text-sm"
+                                                    />
+                                                    <input
+                                                        type="email"
+                                                        placeholder="Email (optional)"
+                                                        value={newCustomer.email}
+                                                        onChange={(e) => setNewCustomer({...newCustomer, email: e.target.value})}
+                                                        className="w-full p-2 border rounded mb-3 text-sm"
+                                                    />
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={addCustomer}
+                                                            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 flex-1 text-sm"
+                                                        >
+                                                            Save
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setShowAddCustomer(false)}
+                                                            className="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 text-sm"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="space-y-2 max-h-96 overflow-y-auto">
+                                                {customers.length === 0 ? (
+                                                    <p className="text-gray-500 text-center py-8 text-sm">No customers yet. Add your first customer!</p>
+                                                ) : (
+                                                    customers.map(customer => (
+                                                        <div
+                                                            key={customer.id}
+                                                            onClick={() => setSelectedCustomer(customer)}
+                                                            className={`p-3 sm:p-4 border rounded-lg cursor-pointer transition-all ${
+                                                                selectedCustomer?.id === customer.id 
+                                                                    ? 'border-blue-600 bg-blue-50' 
+                                                                    : 'border-gray-200 hover:border-blue-300'
+                                                            }`}
+                                                        >
+                                                            <div className="flex justify-between items-start mb-2">
+                                                                <div>
+                                                                    <h3 className="font-semibold text-gray-800 text-sm sm:text-base">{hideSensitive ? maskText(customer.name) : customer.name}</h3>
+                                                                    <p className="text-xs sm:text-sm text-gray-600">{hideSensitive ? maskText(customer.mobile) : customer.mobile}</p>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <p className={`font-bold text-base sm:text-lg ${customer.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                                        {maskAmount(customer.balance)}
+                                                                    </p>
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            deleteCustomer(customer.id);
+                                                                        }}
+                                                                        className="text-red-500 hover:text-red-700 mt-1"
+                                                                    >
+                                                                        <Icon name="Trash2" className="w-4 h-4" />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    sendBalanceNotification(customer);
+                                                                }}
+                                                                className="w-full bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-lg flex items-center justify-center gap-2 text-xs sm:text-sm"
+                                                            >
+                                                                <Icon name="Bell" className="w-4 h-4" />
+                                                                Send Balance Alert
+                                                            </button>
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            {selectedCustomer ? (
+                                                <>
+                                                    <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-3 sm:p-4 rounded-lg mb-4">
+                                                        <h3 className="text-base sm:text-lg font-semibold">{hideSensitive ? maskText(selectedCustomer.name) : selectedCustomer.name}</h3>
+                                                        <p className="text-blue-100 text-xs sm:text-sm">{hideSensitive ? maskText(selectedCustomer.mobile) : selectedCustomer.mobile}</p>
+                                                        <p className="text-2xl sm:text-3xl font-bold mt-2">{maskAmount(selectedCustomer.balance)}</p>
+                                                        <p className="text-blue-100 text-sm">Current Balance</p>
+                                                    </div>
+
+                                                    <button
+                                                        onClick={() => setShowAddTransaction(!showAddTransaction)}
+                                                        className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 mb-4 text-sm"
+                                                    >
+                                                        <Icon name="Plus" className="w-4 h-4 sm:w-5 sm:h-5" />
+                                                        Add Credit/Payment
+                                                    </button>
+
+                                                    {showAddTransaction && (
+                                                        <div className="bg-green-50 p-3 sm:p-4 rounded-lg mb-4 border border-green-200">
+                                                            <h3 className="font-semibold mb-3 text-gray-800 text-sm sm:text-base">New Transaction</h3>
+                                                            <select
+                                                                value={newTransaction.type}
+                                                                onChange={(e) => setNewTransaction({...newTransaction, type: e.target.value})}
+                                                                className="w-full p-2 border rounded mb-2 text-sm"
+                                                            >
+                                                                <option value="credit">Credit Purchase (Add to Balance)</option>
+                                                                <option value="payment">Payment Received (Reduce Balance)</option>
+                                                            </select>
+                                                            <input
+                                                                type="number"
+                                                                placeholder="Amount *"
+                                                                value={newTransaction.amount}
+                                                                onChange={(e) => setNewTransaction({...newTransaction, amount: e.target.value})}
+                                                                className="w-full p-2 border rounded mb-2 text-sm"
+                                                            />
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Description (e.g., Groceries, Rice, etc.)"
+                                                                value={newTransaction.description}
+                                                                onChange={(e) => setNewTransaction({...newTransaction, description: e.target.value})}
+                                                                className="w-full p-2 border rounded mb-2 text-sm"
+                                                            />
+                                                            <input
+                                                                type="date"
+                                                                value={newTransaction.date}
+                                                                onChange={(e) => setNewTransaction({...newTransaction, date: e.target.value})}
+                                                                className="w-full p-2 border rounded mb-3 text-sm"
+                                                            />
+                                                            <div className="flex gap-2">
+                                                                <button
+                                                                    onClick={addTransaction}
+                                                                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex-1 text-sm"
+                                                                >
+                                                                    Save Transaction
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setShowAddTransaction(false)}
+                                                                    className="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 text-sm"
+                                                                >
+                                                                    Cancel
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {editingTransaction && (
+                                                        <div className="bg-yellow-50 p-3 sm:p-4 rounded-lg mb-4 border border-yellow-200">
+                                                            <h3 className="font-semibold mb-3 text-gray-800 text-sm sm:text-base">Edit Transaction</h3>
+                                                            <select
+                                                                value={editingTransaction.type}
+                                                                onChange={(e) => setEditingTransaction({...editingTransaction, type: e.target.value})}
+                                                                className="w-full p-2 border rounded mb-2 text-sm"
+                                                            >
+                                                                <option value="credit">Credit Purchase</option>
+                                                                <option value="payment">Payment Received</option>
+                                                            </select>
+                                                            <input
+                                                                type="number"
+                                                                value={editingTransaction.amount}
+                                                                onChange={(e) => setEditingTransaction({...editingTransaction, amount: e.target.value})}
+                                                                className="w-full p-2 border rounded mb-2 text-sm"
+                                                            />
+                                                            <input
+                                                                type="text"
+                                                                value={editingTransaction.description}
+                                                                onChange={(e) => setEditingTransaction({...editingTransaction, description: e.target.value})}
+                                                                className="w-full p-2 border rounded mb-2 text-sm"
+                                                            />
+                                                            <input
+                                                                type="date"
+                                                                value={editingTransaction.date}
+                                                                onChange={(e) => setEditingTransaction({...editingTransaction, date: e.target.value})}
+                                                                className="w-full p-2 border rounded mb-3 text-sm"
+                                                            />
+                                                            <div className="flex gap-2">
+                                                                <button
+                                                                    onClick={updateTransaction}
+                                                                    className="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700 flex-1 text-sm"
+                                                                >
+                                                                    Update
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setEditingTransaction(null)}
+                                                                    className="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 text-sm"
+                                                                >
+                                                                    Cancel
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    <h3 className="font-bold text-gray-800 mb-3 text-sm sm:text-base">Transaction History</h3>
+                                                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                                                        {(!selectedCustomer.transactions || selectedCustomer.transactions.length === 0) ? (
+                                                            <p className="text-gray-500 text-center py-4 text-sm">No transactions yet</p>
+                                                        ) : (
+                                                            [...selectedCustomer.transactions].reverse().map(transaction => (
+                                                                <div key={transaction.id} className="border border-gray-200 p-3 rounded-lg">
+                                                                    <div className="flex justify-between items-start mb-2">
+                                                                        <div className="flex-1">
+                                                                            <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${
+                                                                                transaction.type === 'credit' 
+                                                                                    ? 'bg-red-100 text-red-800' 
+                                                                                    : 'bg-green-100 text-green-800'
+                                                                            }`}>
+                                                                                {transaction.type === 'credit' ? 'Credit Purchase' : 'Payment'}
+                                                                            </span>
+                                                                            <p className="text-xs sm:text-sm text-gray-600 mt-1">{hideSensitive ? maskText(transaction.description || 'N/A') : transaction.description}</p>
+                                                                            <p className="text-xs text-gray-400">{transaction.date}</p>
+                                                                        </div>
+                                                                        <div className="text-right">
+                                                                            <p className={`font-bold text-base sm:text-lg ${
+                                                                                transaction.type === 'credit' ? 'text-red-600' : 'text-green-600'
+                                                                            }`}>
+                                                                                {hideSensitive ? '•••••' : `${transaction.type === 'credit' ? '+' : '-'}Rs.${transaction.amount.toFixed(2)}`}
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex gap-2 mt-2">
+                                                                        <button
+                                                                            onClick={() => setEditingTransaction(transaction)}
+                                                                            className="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs flex items-center justify-center gap-1"
+                                                                        >
+                                                                            <Icon name="Edit2" className="w-3 h-3" />
+                                                                            Edit
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => deleteTransaction(transaction.id)}
+                                                                            className="flex-1 bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs flex items-center justify-center gap-1"
+                                                                        >
+                                                                            <Icon name="Trash2" className="w-3 h-3" />
+                                                                            Delete
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            ))
+                                                        )}
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="text-center py-12 text-gray-500">
+                                                    <Icon name="Users" className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4 text-gray-300" />
+                                                    <p className="text-sm">Select a customer to view details</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {activeTab === 'summary' && (
+                                    <div>
+                                        <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-6">Business Summary</h2>
+                                        
+                                        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                                            <div className="bg-gradient-to-br from-red-500 to-red-600 text-white p-4 sm:p-6 rounded-xl shadow-lg">
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <p className="text-red-100 mb-1 text-sm">Total Outstanding</p>
+                                                        <p className="text-2xl sm:text-3xl font-bold">{hideSensitive ? 'Rs.•••••' : `Rs.${getTotalCredit().toFixed(2)}`}</p>
+                                                    </div>
+                                                    <Icon name="ShoppingCart" className="w-10 h-10 sm:w-12 sm:h-12 text-red-200" />
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-4 sm:p-6 rounded-xl shadow-lg">
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <p className="text-green-100 mb-1 text-sm">Total Payments</p>
+                                                        <p className="text-2xl sm:text-3xl font-bold">{hideSensitive ? 'Rs.•••••' : `Rs.${getTotalPayment().toFixed(2)}`}</p>
+                                                    </div>
+                                                    <Icon name="DollarSign" className="w-10 h-10 sm:w-12 sm:h-12 text-green-200" />
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-4 sm:p-6 rounded-xl shadow-lg sm:col-span-2 lg:col-span-1">
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <p className="text-purple-100 mb-1 text-sm">Total Customers</p>
+                                                        <p className="text-2xl sm:text-3xl font-bold">{customers.length}</p>
+                                                    </div>
+                                                    <Icon name="Users" className="w-10 h-10 sm:w-12 sm:h-12 text-purple-200" />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 overflow-x-auto">
+                                            <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">Customer Balances</h3>
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full min-w-full">
+                                                    <thead>
+                                                        <tr className="border-b border-gray-200">
+                                                            <th className="text-left py-3 px-2 sm:px-4 font-semibold text-gray-700 text-xs sm:text-sm">Customer</th>
+                                                            <th className="text-left py-3 px-2 sm:px-4 font-semibold text-gray-700 text-xs sm:text-sm">Mobile</th>
+                                                            <th className="text-left py-3 px-2 sm:px-4 font-semibold text-gray-700 text-xs sm:text-sm">Trans.</th>
+                                                            <th className="text-right py-3 px-2 sm:px-4 font-semibold text-gray-700 text-xs sm:text-sm">Balance</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {customers.map(customer => (
+                                                            <tr key={customer.id} className="border-b border-gray-100 hover:bg-gray-50">
+                                                                <td className="py-3 px-2 sm:px-4 text-xs sm:text-sm">{hideSensitive ? maskText(customer.name) : customer.name}</td>
+                                                                <td className="py-3 px-2 sm:px-4 text-gray-600 text-xs sm:text-sm">{hideSensitive ? maskText(customer.mobile) : customer.mobile}</td>
+                                                                <td className="py-3 px-2 sm:px-4 text-gray-600 text-xs sm:text-sm">{customer.transactions ? customer.transactions.length : 0}</td>
+                                                                <td className={`py-3 px-2 sm:px-4 text-right font-bold text-xs sm:text-sm ${
+                                                                    customer.balance >= 0 ? 'text-red-600' : 'text-green-600'
+                                                                }`}>
+                                                                    {maskAmount(customer.balance)}
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                                {customers.length === 0 && (
+                                                    <p className="text-center text-gray-500 py-8 text-sm">No customers to display</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<MRVStoresApp />);
+    </script>
+</body>
+</html>
+      
