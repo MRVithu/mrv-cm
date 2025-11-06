@@ -667,7 +667,6 @@
                                             </div>
 
                                             <div className="mb-4 flex gap-2">
-                                                <Icon name="Search" className="w-5 h-5 text-gray-400 mt-2" />
                                                 <input type="text" placeholder="Search by name or mobile..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="flex-1 p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                                             </div>
 
@@ -701,6 +700,16 @@
                                                                     </button>
                                                                 </div>
                                                             </div>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    sendBalanceNotification(customer);
+                                                                }}
+                                                                className="w-full bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-lg flex items-center justify-center gap-2 text-xs sm:text-sm"
+                                                            >
+                                                                <Icon name="Bell" className="w-4 h-4" />
+                                                                Send Balance Alert
+                                                            </button>
                                                         </div>
                                                     ))
                                                 )}
