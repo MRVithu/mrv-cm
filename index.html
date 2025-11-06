@@ -40,7 +40,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect , useMemo} = React;
 
         // 🔥 FIREBASE CONFIGURATION - ADD YOUR CREDENTIALS HERE
         const DEFAULT_FIREBASE_CONFIG = {
@@ -52,6 +52,9 @@
             messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
             appId: "YOUR_APP_ID"
         };
+
+        const formatCurrency = (amount) => amount.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 
         // Lucide React Icons as inline SVG
         const Icon = ({ name, className = "w-6 h-6", ...props }) => {
@@ -70,7 +73,10 @@
                 Cloud: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>,
                 Bell: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>,
                 Edit2: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>,
-            };
+                ChevronUp: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLineCap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>,
+                ChevronDown: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLineCap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>,
+                Search: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLineCap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>,
+           };
             return icons[name] || null;
         };
 
@@ -86,6 +92,10 @@
             const [syncStatus, setSyncStatus] = useState('disconnected');
             const [database, setDatabase] = useState(null);
             const [editingTransaction, setEditingTransaction] = useState(null);
+            const [searchQuery, setSearchQuery] = useState('');
+            const [summarySearchQuery, setSummarySearchQuery] = useState('');
+            const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+            const [summarySortConfig, setSummarySortConfig] = useState({ key: null, direction: 'asc' });
 
             const [firebaseConfig, setFirebaseConfig] = useState({
                   apiKey: "AIzaSyDK6yValXuea-QwyDGnSysqVBoOAmCQ_SI",
@@ -432,15 +442,9 @@
                 }
             };
 
-            const maskText = (text) => {
-                if (!hideSensitive || !text) return text;
-                return '•'.repeat(text.length);
-            };
+            const maskText = (text) => !hideSensitive || !text ? text : '•'.repeat(text.length);
+            const maskAmount = (amount) => !hideSensitive ? `Rs.${formatCurrency(amount)}` : 'Rs.•••••';
 
-            const maskAmount = (amount) => {
-                if (!hideSensitive) return `Rs.${amount.toFixed(2)}`;
-                return 'Rs.•••••';
-            };
 
             const getTotalCredit = () => {
                 return customers.reduce((sum, c) => sum + (c.balance > 0 ? c.balance : 0), 0);
@@ -463,6 +467,40 @@
                     default: return 'text-gray-400';
                 }
             };
+
+            
+            const filteredAndSortedCustomers = useMemo(() => {
+                let filtered = customers.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.mobile.toLowerCase().includes(searchQuery.toLowerCase()));
+                if (sortConfig.key) {
+                    filtered.sort((a, b) => {
+                        let aVal = a[sortConfig.key], bVal = b[sortConfig.key];
+                        if (typeof aVal === 'string') { aVal = aVal.toLowerCase(); bVal = bVal.toLowerCase(); }
+                        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+                        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+                        return 0;
+                    });
+                }
+                return filtered;
+            }, [customers, searchQuery, sortConfig]);
+
+            const filteredAndSortedSummary = useMemo(() => {
+                let filtered = customers.filter(c => c.name.toLowerCase().includes(summarySearchQuery.toLowerCase()) || c.mobile.toLowerCase().includes(summarySearchQuery.toLowerCase()));
+                if (summarySortConfig.key) {
+                    filtered.sort((a, b) => {
+                        let aVal = a[summarySortConfig.key], bVal = b[summarySortConfig.key];
+                        if (summarySortConfig.key === 'transactions') { aVal = (a.transactions || []).length; bVal = (b.transactions || []).length; }
+                        else if (typeof aVal === 'string') { aVal = aVal.toLowerCase(); bVal = bVal.toLowerCase(); }
+                        if (aVal < bVal) return summarySortConfig.direction === 'asc' ? -1 : 1;
+                        if (aVal > bVal) return summarySortConfig.direction === 'asc' ? 1 : -1;
+                        return 0;
+                    });
+                }
+                return filtered;
+            }, [customers, summarySearchQuery, summarySortConfig]);
+
+            const handleSort = (key) => setSortConfig(prev => ({ key, direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc' }));
+            const handleSummarySort = (key) => setSummarySortConfig(prev => ({ key, direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc' }));
+
 
             return (
                 <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-2 sm:p-4">
@@ -623,101 +661,46 @@
                                         <div>
                                             <div className="flex justify-between items-center mb-4">
                                                 <h2 className="text-lg sm:text-xl font-bold text-gray-800">Customer List</h2>
-                                                <button
-                                                    onClick={() => setShowAddCustomer(!showAddCustomer)}
-                                                    className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm"
-                                                >
-                                                    <Icon name="Plus" className="w-4 h-4 sm:w-5 sm:h-5" />
-                                                    <span className="hidden sm:inline">Add Customer</span>
-                                                    <span className="sm:hidden">Add</span>
+                                                <button onClick={() => setShowAddCustomer(!showAddCustomer)} className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm">
+                                                    <Icon name="Plus" className="w-4 h-4 sm:w-5 sm:h-5" /> <span className="hidden sm:inline">Add</span>
                                                 </button>
+                                            </div>
+
+                                            <div className="mb-4 flex gap-2">
+                                                <Icon name="Search" className="w-5 h-5 text-gray-400 mt-2" />
+                                                <input type="text" placeholder="Search by name or mobile..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="flex-1 p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                                             </div>
 
                                             {showAddCustomer && (
                                                 <div className="bg-blue-50 p-3 sm:p-4 rounded-lg mb-4 border border-blue-200">
-                                                    <h3 className="font-semibold mb-3 text-gray-800 text-sm sm:text-base">New Customer</h3>
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Customer Name *"
-                                                        value={newCustomer.name}
-                                                        onChange={(e) => setNewCustomer({...newCustomer, name: e.target.value})}
-                                                        className="w-full p-2 border rounded mb-2 text-sm"
-                                                    />
-                                                    <input
-                                                        type="tel"
-                                                        placeholder="Mobile Number *"
-                                                        value={newCustomer.mobile}
-                                                        onChange={(e) => setNewCustomer({...newCustomer, mobile: e.target.value})}
-                                                        className="w-full p-2 border rounded mb-2 text-sm"
-                                                    />
-                                                    <input
-                                                        type="email"
-                                                        placeholder="Email (optional)"
-                                                        value={newCustomer.email}
-                                                        onChange={(e) => setNewCustomer({...newCustomer, email: e.target.value})}
-                                                        className="w-full p-2 border rounded mb-3 text-sm"
-                                                    />
+                                                    <input type="text" placeholder="Name *" value={newCustomer.name} onChange={(e) => setNewCustomer({...newCustomer, name: e.target.value})} className="w-full p-2 border rounded mb-2 text-sm" />
+                                                    <input type="tel" placeholder="Mobile *" value={newCustomer.mobile} onChange={(e) => setNewCustomer({...newCustomer, mobile: e.target.value})} className="w-full p-2 border rounded mb-2 text-sm" />
+                                                    <input type="email" placeholder="Email" value={newCustomer.email} onChange={(e) => setNewCustomer({...newCustomer, email: e.target.value})} className="w-full p-2 border rounded mb-3 text-sm" />
                                                     <div className="flex gap-2">
-                                                        <button
-                                                            onClick={addCustomer}
-                                                            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 flex-1 text-sm"
-                                                        >
-                                                            Save
-                                                        </button>
-                                                        <button
-                                                            onClick={() => setShowAddCustomer(false)}
-                                                            className="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 text-sm"
-                                                        >
-                                                            Cancel
-                                                        </button>
+                                                        <button onClick={addCustomer} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 flex-1 text-sm">Save</button>
+                                                        <button onClick={() => setShowAddCustomer(false)} className="bg-gray-300 text-gray-700 px-4 py-2 rounded text-sm">Cancel</button>
                                                     </div>
                                                 </div>
                                             )}
 
                                             <div className="space-y-2 max-h-96 overflow-y-auto">
-                                                {customers.length === 0 ? (
-                                                    <p className="text-gray-500 text-center py-8 text-sm">No customers yet. Add your first customer!</p>
+                                                {filteredAndSortedCustomers.length === 0 ? (
+                                                    <p className="text-gray-500 text-center py-8 text-sm">No customers found</p>
                                                 ) : (
-                                                    customers.map(customer => (
-                                                        <div
-                                                            key={customer.id}
-                                                            onClick={() => setSelectedCustomer(customer)}
-                                                            className={`p-3 sm:p-4 border rounded-lg cursor-pointer transition-all ${
-                                                                selectedCustomer?.id === customer.id 
-                                                                    ? 'border-blue-600 bg-blue-50' 
-                                                                    : 'border-gray-200 hover:border-blue-300'
-                                                            }`}
-                                                        >
+                                                    filteredAndSortedCustomers.map(customer => (
+                                                        <div key={customer.id} onClick={() => setSelectedCustomer(customer)} className={`p-3 sm:p-4 border rounded-lg cursor-pointer ${selectedCustomer?.id === customer.id ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}>
                                                             <div className="flex justify-between items-start mb-2">
                                                                 <div>
-                                                                    <h3 className="font-semibold text-gray-800 text-sm sm:text-base">{hideSensitive ? maskText(customer.name) : customer.name}</h3>
-                                                                    <p className="text-xs sm:text-sm text-gray-600">{hideSensitive ? maskText(customer.mobile) : customer.mobile}</p>
+                                                                    <h3 className="font-semibold text-gray-800 text-sm">{maskText(customer.name)}</h3>
+                                                                    <p className="text-xs text-gray-600">{maskText(customer.mobile)}</p>
                                                                 </div>
                                                                 <div className="text-right">
-                                                                    <p className={`font-bold text-base sm:text-lg ${customer.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                                        {maskAmount(customer.balance)}
-                                                                    </p>
-                                                                    <button
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            deleteCustomer(customer.id);
-                                                                        }}
-                                                                        className="text-red-500 hover:text-red-700 mt-1"
-                                                                    >
+                                                                    <p className={`font-bold text-lg ${customer.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>{maskAmount(customer.balance)}</p>
+                                                                    <button onClick={(e) => { e.stopPropagation(); deleteCustomer(customer.id); }} className="text-red-500 hover:text-red-700 mt-1">
                                                                         <Icon name="Trash2" className="w-4 h-4" />
                                                                     </button>
                                                                 </div>
                                                             </div>
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    sendBalanceNotification(customer);
-                                                                }}
-                                                                className="w-full bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-lg flex items-center justify-center gap-2 text-xs sm:text-sm"
-                                                            >
-                                                                <Icon name="Bell" className="w-4 h-4" />
-                                                                Send Balance Alert
-                                                            </button>
                                                         </div>
                                                     ))
                                                 )}
@@ -728,155 +711,75 @@
                                             {selectedCustomer ? (
                                                 <>
                                                     <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-3 sm:p-4 rounded-lg mb-4">
-                                                        <h3 className="text-base sm:text-lg font-semibold">{hideSensitive ? maskText(selectedCustomer.name) : selectedCustomer.name}</h3>
-                                                        <p className="text-blue-100 text-xs sm:text-sm">{hideSensitive ? maskText(selectedCustomer.mobile) : selectedCustomer.mobile}</p>
+                                                        <h3 className="text-base sm:text-lg font-semibold">{maskText(selectedCustomer.name)}</h3>
+                                                        <p className="text-blue-100 text-xs">{maskText(selectedCustomer.mobile)}</p>
                                                         <p className="text-2xl sm:text-3xl font-bold mt-2">{maskAmount(selectedCustomer.balance)}</p>
                                                         <p className="text-blue-100 text-sm">Current Balance</p>
                                                     </div>
 
-                                                    <button
-                                                        onClick={() => setShowAddTransaction(!showAddTransaction)}
-                                                        className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 mb-4 text-sm"
-                                                    >
-                                                        <Icon name="Plus" className="w-4 h-4 sm:w-5 sm:h-5" />
-                                                        Add Credit/Payment
+                                                    <button onClick={() => setShowAddTransaction(!showAddTransaction)} className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 mb-4 text-sm">
+                                                        <Icon name="Plus" className="w-4 h-4" /> Add Credit/Payment
                                                     </button>
 
                                                     {showAddTransaction && (
                                                         <div className="bg-green-50 p-3 sm:p-4 rounded-lg mb-4 border border-green-200">
-                                                            <h3 className="font-semibold mb-3 text-gray-800 text-sm sm:text-base">New Transaction</h3>
-                                                            <select
-                                                                value={newTransaction.type}
-                                                                onChange={(e) => setNewTransaction({...newTransaction, type: e.target.value})}
-                                                                className="w-full p-2 border rounded mb-2 text-sm"
-                                                            >
-                                                                <option value="credit">Credit Purchase (Add to Balance)</option>
-                                                                <option value="payment">Payment Received (Reduce Balance)</option>
+                                                            <select value={newTransaction.type} onChange={(e) => setNewTransaction({...newTransaction, type: e.target.value})} className="w-full p-2 border rounded mb-2 text-sm">
+                                                                <option value="credit">Credit Purchase</option>
+                                                                <option value="payment">Payment Received</option>
                                                             </select>
-                                                            <input
-                                                                type="number"
-                                                                placeholder="Amount *"
-                                                                value={newTransaction.amount}
-                                                                onChange={(e) => setNewTransaction({...newTransaction, amount: e.target.value})}
-                                                                className="w-full p-2 border rounded mb-2 text-sm"
-                                                            />
-                                                            <input
-                                                                type="text"
-                                                                placeholder="Description (e.g., Groceries, Rice, etc.)"
-                                                                value={newTransaction.description}
-                                                                onChange={(e) => setNewTransaction({...newTransaction, description: e.target.value})}
-                                                                className="w-full p-2 border rounded mb-2 text-sm"
-                                                            />
-                                                            <input
-                                                                type="date"
-                                                                value={newTransaction.date}
-                                                                onChange={(e) => setNewTransaction({...newTransaction, date: e.target.value})}
-                                                                className="w-full p-2 border rounded mb-3 text-sm"
-                                                            />
+                                                            <input type="number" placeholder="Amount *" value={newTransaction.amount} onChange={(e) => setNewTransaction({...newTransaction, amount: e.target.value})} className="w-full p-2 border rounded mb-2 text-sm" />
+                                                            <input type="text" placeholder="Description" value={newTransaction.description} onChange={(e) => setNewTransaction({...newTransaction, description: e.target.value})} className="w-full p-2 border rounded mb-2 text-sm" />
+                                                            <input type="date" value={newTransaction.date} onChange={(e) => setNewTransaction({...newTransaction, date: e.target.value})} className="w-full p-2 border rounded mb-3 text-sm" />
                                                             <div className="flex gap-2">
-                                                                <button
-                                                                    onClick={addTransaction}
-                                                                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex-1 text-sm"
-                                                                >
-                                                                    Save Transaction
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => setShowAddTransaction(false)}
-                                                                    className="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 text-sm"
-                                                                >
-                                                                    Cancel
-                                                                </button>
+                                                                <button onClick={addTransaction} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex-1 text-sm">Save</button>
+                                                                <button onClick={() => setShowAddTransaction(false)} className="bg-gray-300 text-gray-700 px-4 py-2 rounded text-sm">Cancel</button>
                                                             </div>
                                                         </div>
                                                     )}
 
                                                     {editingTransaction && (
                                                         <div className="bg-yellow-50 p-3 sm:p-4 rounded-lg mb-4 border border-yellow-200">
-                                                            <h3 className="font-semibold mb-3 text-gray-800 text-sm sm:text-base">Edit Transaction</h3>
-                                                            <select
-                                                                value={editingTransaction.type}
-                                                                onChange={(e) => setEditingTransaction({...editingTransaction, type: e.target.value})}
-                                                                className="w-full p-2 border rounded mb-2 text-sm"
-                                                            >
+                                                            <select value={editingTransaction.type} onChange={(e) => setEditingTransaction({...editingTransaction, type: e.target.value})} className="w-full p-2 border rounded mb-2 text-sm">
                                                                 <option value="credit">Credit Purchase</option>
                                                                 <option value="payment">Payment Received</option>
                                                             </select>
-                                                            <input
-                                                                type="number"
-                                                                value={editingTransaction.amount}
-                                                                onChange={(e) => setEditingTransaction({...editingTransaction, amount: e.target.value})}
-                                                                className="w-full p-2 border rounded mb-2 text-sm"
-                                                            />
-                                                            <input
-                                                                type="text"
-                                                                value={editingTransaction.description}
-                                                                onChange={(e) => setEditingTransaction({...editingTransaction, description: e.target.value})}
-                                                                className="w-full p-2 border rounded mb-2 text-sm"
-                                                            />
-                                                            <input
-                                                                type="date"
-                                                                value={editingTransaction.date}
-                                                                onChange={(e) => setEditingTransaction({...editingTransaction, date: e.target.value})}
-                                                                className="w-full p-2 border rounded mb-3 text-sm"
-                                                            />
+                                                            <input type="number" value={editingTransaction.amount} onChange={(e) => setEditingTransaction({...editingTransaction, amount: e.target.value})} className="w-full p-2 border rounded mb-2 text-sm" />
+                                                            <input type="text" value={editingTransaction.description} onChange={(e) => setEditingTransaction({...editingTransaction, description: e.target.value})} className="w-full p-2 border rounded mb-2 text-sm" />
+                                                            <input type="date" value={editingTransaction.date} onChange={(e) => setEditingTransaction({...editingTransaction, date: e.target.value})} className="w-full p-2 border rounded mb-3 text-sm" />
                                                             <div className="flex gap-2">
-                                                                <button
-                                                                    onClick={updateTransaction}
-                                                                    className="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700 flex-1 text-sm"
-                                                                >
-                                                                    Update
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => setEditingTransaction(null)}
-                                                                    className="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 text-sm"
-                                                                >
-                                                                    Cancel
-                                                                </button>
+                                                                <button onClick={updateTransaction} className="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700 flex-1 text-sm">Update</button>
+                                                                <button onClick={() => setEditingTransaction(null)} className="bg-gray-300 text-gray-700 px-4 py-2 rounded text-sm">Cancel</button>
                                                             </div>
                                                         </div>
                                                     )}
 
-                                                    <h3 className="font-bold text-gray-800 mb-3 text-sm sm:text-base">Transaction History</h3>
+                                                    <h3 className="font-bold text-gray-800 mb-3 text-sm">Transaction History</h3>
                                                     <div className="space-y-2 max-h-96 overflow-y-auto">
                                                         {(!selectedCustomer.transactions || selectedCustomer.transactions.length === 0) ? (
-                                                            <p className="text-gray-500 text-center py-4 text-sm">No transactions yet</p>
+                                                            <p className="text-gray-500 text-center py-4 text-sm">No transactions</p>
                                                         ) : (
                                                             [...selectedCustomer.transactions].reverse().map(transaction => (
                                                                 <div key={transaction.id} className="border border-gray-200 p-3 rounded-lg">
                                                                     <div className="flex justify-between items-start mb-2">
                                                                         <div className="flex-1">
-                                                                            <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${
-                                                                                transaction.type === 'credit' 
-                                                                                    ? 'bg-red-100 text-red-800' 
-                                                                                    : 'bg-green-100 text-green-800'
-                                                                            }`}>
-                                                                                {transaction.type === 'credit' ? 'Credit Purchase' : 'Payment'}
+                                                                            <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${transaction.type === 'credit' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                                                                                {transaction.type === 'credit' ? 'Credit' : 'Payment'}
                                                                             </span>
-                                                                            <p className="text-xs sm:text-sm text-gray-600 mt-1">{hideSensitive ? maskText(transaction.description || 'N/A') : transaction.description}</p>
+                                                                            <p className="text-xs text-gray-600 mt-1">{transaction.description || 'N/A'}</p>
                                                                             <p className="text-xs text-gray-400">{transaction.date}</p>
                                                                         </div>
                                                                         <div className="text-right">
-                                                                            <p className={`font-bold text-base sm:text-lg ${
-                                                                                transaction.type === 'credit' ? 'text-red-600' : 'text-green-600'
-                                                                            }`}>
-                                                                                {hideSensitive ? '•••••' : `${transaction.type === 'credit' ? '+' : '-'}Rs.${transaction.amount.toFixed(2)}`}
+                                                                            <p className={`font-bold text-lg ${transaction.type === 'credit' ? 'text-red-600' : 'text-green-600'}`}>
+                                                                                {hideSensitive ? '•••••' : `${transaction.type === 'credit' ? '+' : '-'}Rs.${formatCurrency(transaction.amount)}`}
                                                                             </p>
                                                                         </div>
                                                                     </div>
                                                                     <div className="flex gap-2 mt-2">
-                                                                        <button
-                                                                            onClick={() => setEditingTransaction(transaction)}
-                                                                            className="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs flex items-center justify-center gap-1"
-                                                                        >
-                                                                            <Icon name="Edit2" className="w-3 h-3" />
-                                                                            Edit
+                                                                        <button onClick={() => setEditingTransaction(transaction)} className="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs">
+                                                                            <Icon name="Edit2" className="w-3 h-3 inline mr-1" /> Edit
                                                                         </button>
-                                                                        <button
-                                                                            onClick={() => deleteTransaction(transaction.id)}
-                                                                            className="flex-1 bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs flex items-center justify-center gap-1"
-                                                                        >
-                                                                            <Icon name="Trash2" className="w-3 h-3" />
-                                                                            Delete
+                                                                        <button onClick={() => deleteTransaction(transaction.id)} className="flex-1 bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs">
+                                                                            <Icon name="Trash2" className="w-3 h-3 inline mr-1" /> Delete
                                                                         </button>
                                                                     </div>
                                                                 </div>
@@ -886,7 +789,7 @@
                                                 </>
                                             ) : (
                                                 <div className="text-center py-12 text-gray-500">
-                                                    <Icon name="Users" className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4 text-gray-300" />
+                                                    <Icon name="Users" className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                                                     <p className="text-sm">Select a customer to view details</p>
                                                 </div>
                                             )}
@@ -931,32 +834,53 @@
                                         </div>
 
                                         <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 overflow-x-auto">
-                                            <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">Customer Balances</h3>
+                                            <div className="flex justify-between items-center mb-4 flex-col sm:flex-row gap-3">
+                                                <h3 className="text-lg sm:text-xl font-bold text-gray-800">Customer Balances</h3>
+                                                <div className="flex gap-2 w-full sm:w-auto">
+                                                    <Icon name="Search" className="w-5 h-5 text-gray-400 mt-2" />
+                                                    <input type="text" placeholder="Search..." value={summarySearchQuery} onChange={(e) => setSummarySearchQuery(e.target.value)} className="flex-1 sm:flex-none p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                                </div>
+                                            </div>
                                             <div className="overflow-x-auto">
-                                                <table className="w-full min-w-full">
+                                              <table className="w-full min-w-full">
                                                     <thead>
                                                         <tr className="border-b border-gray-200">
-                                                            <th className="text-left py-3 px-2 sm:px-4 font-semibold text-gray-700 text-xs sm:text-sm">Customer</th>
-                                                            <th className="text-left py-3 px-2 sm:px-4 font-semibold text-gray-700 text-xs sm:text-sm">Mobile</th>
-                                                            <th className="text-left py-3 px-2 sm:px-4 font-semibold text-gray-700 text-xs sm:text-sm">Trans.</th>
-                                                            <th className="text-right py-3 px-2 sm:px-4 font-semibold text-gray-700 text-xs sm:text-sm">Balance</th>
+                                                            <th className="text-left py-3 px-2 sm:px-4 font-semibold text-gray-700 text-xs sm:text-sm">
+                                                                <button onClick={() => handleSummarySort('name')} className="hover:text-blue-600 cursor-pointer flex items-center gap-1">
+                                                                    Customer {summarySortConfig.key === 'name' && <Icon name={summarySortConfig.direction === 'asc' ? 'ChevronUp' : 'ChevronDown'} className="w-4 h-4" />}
+                                                                </button>
+                                                            </th>
+                                                            <th className="text-left py-3 px-2 sm:px-4 font-semibold text-gray-700 text-xs sm:text-sm">
+                                                                <button onClick={() => handleSummarySort('mobile')} className="hover:text-blue-600 cursor-pointer flex items-center gap-1">
+                                                                    Mobile {summarySortConfig.key === 'mobile' && <Icon name={summarySortConfig.direction === 'asc' ? 'ChevronUp' : 'ChevronDown'} className="w-4 h-4" />}
+                                                                </button>
+                                                            </th>
+                                                            <th className="text-left py-3 px-2 sm:px-4 font-semibold text-gray-700 text-xs sm:text-sm">
+                                                                <button onClick={() => handleSummarySort('transactions')} className="hover:text-blue-600 cursor-pointer flex items-center gap-1">
+                                                                    Trans. {summarySortConfig.key === 'transactions' && <Icon name={summarySortConfig.direction === 'asc' ? 'ChevronUp' : 'ChevronDown'} className="w-4 h-4" />}
+                                                                </button>
+                                                            </th>
+                                                            <th className="text-right py-3 px-2 sm:px-4 font-semibold text-gray-700 text-xs sm:text-sm">
+                                                                <button onClick={() => handleSummarySort('balance')} className="hover:text-blue-600 cursor-pointer flex items-center gap-1 ml-auto">
+                                                                    Balance {summarySortConfig.key === 'balance' && <Icon name={summarySortConfig.direction === 'asc' ? 'ChevronUp' : 'ChevronDown'} className="w-4 h-4" />}
+                                                                </button>
+                                                            </th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
-                                                        {customers.map(customer => (
+                                                        {filteredAndSortedSummary.map(customer => (
                                                             <tr key={customer.id} className="border-b border-gray-100 hover:bg-gray-50">
-                                                                <td className="py-3 px-2 sm:px-4 text-xs sm:text-sm">{hideSensitive ? maskText(customer.name) : customer.name}</td>
-                                                                <td className="py-3 px-2 sm:px-4 text-gray-600 text-xs sm:text-sm">{hideSensitive ? maskText(customer.mobile) : customer.mobile}</td>
+                                                                <td className="py-3 px-2 sm:px-4 text-xs sm:text-sm">{maskText(customer.name)}</td>
+                                                                <td className="py-3 px-2 sm:px-4 text-gray-600 text-xs sm:text-sm">{maskText(customer.mobile)}</td>
                                                                 <td className="py-3 px-2 sm:px-4 text-gray-600 text-xs sm:text-sm">{customer.transactions ? customer.transactions.length : 0}</td>
-                                                                <td className={`py-3 px-2 sm:px-4 text-right font-bold text-xs sm:text-sm ${
-                                                                    customer.balance >= 0 ? 'text-red-600' : 'text-green-600'
-                                                                }`}>
+                                                                <td className={`py-3 px-2 sm:px-4 text-right font-bold text-xs sm:text-sm ${customer.balance >= 0 ? 'text-red-600' : 'text-green-600'}`}>
                                                                     {maskAmount(customer.balance)}
                                                                 </td>
                                                             </tr>
                                                         ))}
                                                     </tbody>
                                                 </table>
+                                                 
                                                 {customers.length === 0 && (
                                                     <p className="text-center text-gray-500 py-8 text-sm">No customers to display</p>
                                                 )}
