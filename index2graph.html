@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MRV Stores - Credit Manager</title>
     
-    <!-- PWA Meta Tags -->
     <link rel="apple-touch-icon" href="https://i.imgur.com/QOMvGBE.png">
     <link rel="icon" href="https://i.imgur.com/QOMvGBE.png">
     <meta name="theme-color" content="#2563eb">
@@ -18,46 +17,23 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     
     <style>
-        body {
-            margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-        }
-
-        .from-blue-600 {
-            --tw-gradient-from: #25bdeb var(--tw-gradient-from-position) !important;
-            --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
-        }
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto'; -webkit-font-smoothing: antialiased; }
+        .from-blue-600 { --tw-gradient-from: #25bdeb var(--tw-gradient-from-position) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect , useMemo} = React;
-
-        // 🔥 FIREBASE CONFIGURATION - ADD YOUR CREDENTIALS HERE
-        const DEFAULT_FIREBASE_CONFIG = {
-            apiKey: "YOUR_API_KEY_HERE",
-            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-            databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
-            projectId: "YOUR_PROJECT_ID",
-            storageBucket: "YOUR_PROJECT_ID.appspot.com",
-            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-            appId: "YOUR_APP_ID"
-        };
+        const { useState, useEffect, useMemo } = React;
 
         const formatCurrency = (amount) => amount.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-
-        // Lucide React Icons as inline SVG
         const Icon = ({ name, className = "w-6 h-6", ...props }) => {
             const icons = {
                 Plus: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>,
@@ -66,18 +42,18 @@
                 ShoppingCart: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
                 DollarSign: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
                 Trash2: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>,
-                Eye: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>,
-                EyeOff: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>,
-                Download: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>,
-                Upload: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>,
-                Settings: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
-                Cloud: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>,
-                Bell: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>,
-                Edit2: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>,
+                Eye: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLineCap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>,
+                EyeOff: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLineCap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>,
+                Download: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLineCap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>,
+                Upload: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLineCap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>,
+                Settings: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLineCap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLineCap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+                Cloud: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLineCap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>,
+                Bell: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLineCap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>,
+                Edit2: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLineCap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>,
                 ChevronUp: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLineCap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>,
                 ChevronDown: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLineCap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>,
                 Search: <svg className={className} {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLineCap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>,
-           };
+            };
             return icons[name] || null;
         };
 
@@ -88,390 +64,20 @@
             const [showAddTransaction, setShowAddTransaction] = useState(false);
             const [activeTab, setActiveTab] = useState('customers');
             const [hideSensitive, setHideSensitive] = useState(false);
-            const [showSettings, setShowSettings] = useState(false);
-            const [firebaseConfigured, setFirebaseConfigured] = useState(false);
-            const [syncStatus, setSyncStatus] = useState('disconnected');
-            const [database, setDatabase] = useState(null);
-            const [editingTransaction, setEditingTransaction] = useState(null);
             const [searchQuery, setSearchQuery] = useState('');
             const [summarySearchQuery, setSummarySearchQuery] = useState('');
             const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
             const [summarySortConfig, setSummarySortConfig] = useState({ key: null, direction: 'asc' });
+            const [editingTransaction, setEditingTransaction] = useState(null);
             const chartRef = React.useRef(null);
             const chartInstance = React.useRef(null);
 
-            const [firebaseConfig, setFirebaseConfig] = useState({
-                  apiKey: "AIzaSyDK6yValXuea-QwyDGnSysqVBoOAmCQ_SI",
-                    authDomain: "finance-tracker-b41ee.firebaseapp.com",
-                    databaseURL: "https://finance-tracker-b41ee-default-rtdb.asia-southeast1.firebasedatabase.app",
-                    projectId: "finance-tracker-b41ee",
-                    storageBucket: "finance-tracker-b41ee.firebasestorage.app",
-                    messagingSenderId: "601547033779",
-                    appId: ""
-            });
-
-            const [newCustomer, setNewCustomer] = useState({
-                name: '',
-                mobile: '',
-                email: ''
-            });
-
-            const [newTransaction, setNewTransaction] = useState({
-                type: 'credit',
-                amount: '',
-                description: '',
-                date: new Date().toISOString().split('T')[0]
-            });
-
-            useEffect(() => {
-                loadFirebaseConfig();
-            }, []);
-
-            const loadFirebaseConfig = () => {
-                if (DEFAULT_FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY_HERE") {
-                    setFirebaseConfig(DEFAULT_FIREBASE_CONFIG);
-                    initializeFirebase(DEFAULT_FIREBASE_CONFIG);
-                    return;
-                }
-                
-                const savedConfig = localStorage.getItem('firebaseConfig');
-                if (savedConfig) {
-                    const config = JSON.parse(savedConfig);
-                    setFirebaseConfig(config);
-                    initializeFirebase(config);
-                }
-            };
-
-            const initializeFirebase = (config) => {
-                try {
-                    if (!firebase.apps.length) {
-                        firebase.initializeApp(config);
-                    }
-                    const db = firebase.database();
-                    setDatabase(db);
-                    setFirebaseConfigured(true);
-                    setSyncStatus('connected');
-                    loadDataFromFirebase(db);
-                } catch (error) {
-                    console.error('Firebase initialization error:', error);
-                    setSyncStatus('error');
-                }
-            };
-
-            const saveFirebaseConfig = () => {
-                if (!firebaseConfig.apiKey || !firebaseConfig.databaseURL) {
-                    alert('Please fill in at least API Key and Database URL');
-                    return;
-                }
-                localStorage.setItem('firebaseConfig', JSON.stringify(firebaseConfig));
-                initializeFirebase(firebaseConfig);
-                setShowSettings(false);
-            };
-
-            const loadDataFromFirebase = (db) => {
-                const customersRef = db.ref('customers');
-                customersRef.on('value', (snapshot) => {
-                    const data = snapshot.val();
-                    if (data) {
-                        const customersList = Object.keys(data).map(key => ({
-                            ...data[key],
-                            id: key,
-                            transactions: data[key].transactions || []
-                        }));
-                        setCustomers(customersList);
-                        setSyncStatus('synced');
-                    }
-                });
-            };
-
-            const saveDataToFirebase = async (updatedCustomers) => {
-                if (!database) return;
-                
-                try {
-                    setSyncStatus('syncing');
-                    const customersRef = database.ref('customers');
-                    const customersObj = {};
-                    updatedCustomers.forEach(customer => {
-                        customersObj[customer.id] = customer;
-                    });
-                    await customersRef.set(customersObj);
-                    setSyncStatus('synced');
-                } catch (error) {
-                    console.error('Error saving to Firebase:', error);
-                    setSyncStatus('error');
-                }
-            };
-
-            const exportData = () => {
-                const dataStr = JSON.stringify(customers, null, 2);
-                const dataBlob = new Blob([dataStr], { type: 'application/json' });
-                const url = URL.createObjectURL(dataBlob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `mrv-stores-data-${new Date().toISOString().split('T')[0]}.json`;
-                link.click();
-            };
-
-            const importData = (e) => {
-                const file = e.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
-                        try {
-                            const importedData = JSON.parse(event.target.result);
-                            setCustomers(importedData);
-                            if (database) {
-                                saveDataToFirebase(importedData);
-                            }
-                            alert('Data imported successfully!');
-                        } catch (error) {
-                            alert('Error importing data. Please check the file format.');
-                        }
-                    };
-                    reader.readAsText(file);
-                }
-            };
-
-            const addCustomer = () => {
-                if (!newCustomer.name || !newCustomer.mobile) {
-                    alert('Please fill in name and mobile number');
-                    return;
-                }
-
-                const customer = {
-                    id: Date.now().toString(),
-                    ...newCustomer,
-                    balance: 0,
-                    transactions: []
-                };
-
-                const updatedCustomers = [...customers, customer];
-                setCustomers(updatedCustomers);
-                if (database) {
-                    saveDataToFirebase(updatedCustomers);
-                }
-                setNewCustomer({ name: '', mobile: '', email: '' });
-                setShowAddCustomer(false);
-            };
-
-            const addTransaction = () => {
-                if (!newTransaction.amount || !selectedCustomer) {
-                    alert('Please fill in all required fields');
-                    return;
-                }
-
-                const amount = parseFloat(newTransaction.amount);
-                const transaction = {
-                    id: Date.now().toString(),
-                    type: newTransaction.type,
-                    amount: amount,
-                    description: newTransaction.description,
-                    date: newTransaction.date,
-                    timestamp: new Date().toISOString()
-                };
-
-                const updatedCustomers = customers.map(c => {
-                    if (c.id === selectedCustomer.id) {
-                        const newBalance = newTransaction.type === 'credit' 
-                            ? c.balance + amount 
-                            : c.balance - amount;
-                        
-                        const updatedCustomer = {
-                            ...c,
-                            balance: newBalance,
-                            transactions: [...(c.transactions || []), transaction]
-                        };
-
-                        // Send SMS notification
-                        sendTransactionNotification(c, transaction, newBalance);
-                        
-                        setSelectedCustomer(updatedCustomer);
-                        return updatedCustomer;
-                    }
-                    return c;
-                });
-
-                setCustomers(updatedCustomers);
-                if (database) {
-                    saveDataToFirebase(updatedCustomers);
-                }
-                setNewTransaction({
-                    type: 'credit',
-                    amount: '',
-                    description: '',
-                    date: new Date().toISOString().split('T')[0]
-                });
-                setShowAddTransaction(false);
-            };
-
-            const sendTransactionNotification = (customer, transaction, newBalance) => {
-                const now = new Date();
-                const formattedDate = now.toLocaleDateString('ta-LK', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric',
-                });
-
-                const transactionType =
-                    transaction.type === 'credit'
-                        ? 'கடன் கொள்வனவு'
-                        : 'கட்டணம்';
-
-                const message =
-            `MRV STORES: ${customer.name}, ${transactionType} Rs.${transaction.amount.toFixed(2)}.
-            நிலுவை: Rs.${newBalance.toFixed(2)} (${formattedDate}).
-            
-            நன்றி - MRV STORES`;
-
-                const smsUrl = `sms:${customer.mobile}?body=${encodeURIComponent(message)}`;
-
-                if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-                    window.location.href = smsUrl;
-                } else {
-                    window.open(smsUrl, '_blank');
-                }
-            };
-
-
-
-
-            const updateTransaction = () => {
-                if (!editingTransaction) return;
-
-                const updatedCustomers = customers.map(c => {
-                    if (c.id === selectedCustomer.id) {
-                        const oldTransaction = c.transactions.find(t => t.id === editingTransaction.id);
-                        const oldAmount = oldTransaction.type === 'credit' ? oldTransaction.amount : -oldTransaction.amount;
-                        const newAmount = editingTransaction.type === 'credit' ? parseFloat(editingTransaction.amount) : -parseFloat(editingTransaction.amount);
-                        
-                        const updatedTransactions = c.transactions.map(t => 
-                            t.id === editingTransaction.id ? {...editingTransaction, amount: parseFloat(editingTransaction.amount)} : t
-                        );
-
-                        const newBalance = c.balance - oldAmount + newAmount;
-
-                        const updatedCustomer = {
-                            ...c,
-                            balance: newBalance,
-                            transactions: updatedTransactions
-                        };
-
-                        setSelectedCustomer(updatedCustomer);
-                        return updatedCustomer;
-                    }
-                    return c;
-                });
-
-                setCustomers(updatedCustomers);
-                if (database) {
-                    saveDataToFirebase(updatedCustomers);
-                }
-                setEditingTransaction(null);
-            };
-
-            const deleteTransaction = (transactionId) => {
-                if (!confirm('Are you sure you want to delete this transaction?')) return;
-
-                const updatedCustomers = customers.map(c => {
-                    if (c.id === selectedCustomer.id) {
-                        const transaction = c.transactions.find(t => t.id === transactionId);
-                        const amount = transaction.type === 'credit' ? -transaction.amount : transaction.amount;
-                        
-                        const updatedTransactions = c.transactions.filter(t => t.id !== transactionId);
-                        const newBalance = c.balance + amount;
-
-                        const updatedCustomer = {
-                            ...c,
-                            balance: newBalance,
-                            transactions: updatedTransactions
-                        };
-
-                        setSelectedCustomer(updatedCustomer);
-                        return updatedCustomer;
-                    }
-                    return c;
-                });
-
-                setCustomers(updatedCustomers);
-                if (database) {
-                    saveDataToFirebase(updatedCustomers);
-                }
-            };
-
-           const sendBalanceNotification = (customer) => {
-                const now = new Date();
-                const formattedDate = now.toLocaleString('ta-LK', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: true,
-                });
-
-                // short & clean Tamil message (safe for SMS)
-                const message = 
-            `வணக்கம் ${customer.name},
-            ${formattedDate} நிலவரப்படி உங்கள் MRV STORES கணக்கின் நிலுவை: Rs.${customer.balance.toFixed(2)}.
-            நன்றி - MRV STORES`;
-
-                const encodedMessage = encodeURIComponent(message);
-                const smsUrl = `sms:${customer.mobile}?body=${encodedMessage}`;
-
-                if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-                    window.location.href = smsUrl;
-                } else {
-                    const confirmed = confirm(
-                        `Send Tamil balance message to ${customer.name}?\n\nBalance: Rs.${customer.balance.toFixed(2)}`
-                    );
-                    if (confirmed) {
-                        window.open(smsUrl, '_blank');
-                    }
-                }
-            };
-
-
-
-            const deleteCustomer = (id) => {
-                if (confirm('Are you sure you want to delete this customer?')) {
-                    const updatedCustomers = customers.filter(c => c.id !== id);
-                    setCustomers(updatedCustomers);
-                    if (database) {
-                        saveDataToFirebase(updatedCustomers);
-                    }
-                    if (selectedCustomer?.id === id) {
-                        setSelectedCustomer(null);
-                    }
-                }
-            };
+            const [newCustomer, setNewCustomer] = useState({ name: '', mobile: '', email: '' });
+            const [newTransaction, setNewTransaction] = useState({ type: 'credit', amount: '', description: '', date: new Date().toISOString().split('T')[0] });
 
             const maskText = (text) => !hideSensitive || !text ? text : '•'.repeat(text.length);
             const maskAmount = (amount) => !hideSensitive ? `Rs.${formatCurrency(amount)}` : 'Rs.•••••';
 
-
-            const getTotalCredit = () => {
-                return customers.reduce((sum, c) => sum + (c.balance > 0 ? c.balance : 0), 0);
-            };
-
-            const getTotalPayment = () => {
-                return customers.reduce((sum, c) => {
-                    if (!c.transactions) return sum;
-                    return sum + c.transactions.reduce((tSum, t) => 
-                        t.type === 'payment' ? tSum + t.amount : tSum, 0);
-                }, 0);
-            };
-
-            const getSyncStatusColor = () => {
-                switch(syncStatus) {
-                    case 'connected': return 'text-green-500';
-                    case 'synced': return 'text-green-500';
-                    case 'syncing': return 'text-yellow-500';
-                    case 'error': return 'text-red-500';
-                    default: return 'text-gray-400';
-                }
-            };
-
-            
             const filteredAndSortedCustomers = useMemo(() => {
                 let filtered = customers.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.mobile.toLowerCase().includes(searchQuery.toLowerCase()));
                 if (sortConfig.key) {
@@ -623,161 +229,97 @@
                 }
             }, [activeTab, customers]);
 
-                       
+            const addCustomer = () => {
+                if (!newCustomer.name || !newCustomer.mobile) { alert('Please fill in name and mobile number'); return; }
+                setCustomers([...customers, { id: Date.now().toString(), ...newCustomer, balance: 0, transactions: [] }]);
+                setNewCustomer({ name: '', mobile: '', email: '' });
+                setShowAddCustomer(false);
+            };
+
+            const addTransaction = () => {
+                if (!newTransaction.amount || !selectedCustomer) { alert('Please fill in all required fields'); return; }
+                const amount = parseFloat(newTransaction.amount);
+                const transaction = { id: Date.now().toString(), type: newTransaction.type, amount, description: newTransaction.description, date: newTransaction.date, timestamp: new Date().toISOString() };
+                setCustomers(customers.map(c => {
+                    if (c.id === selectedCustomer.id) {
+                        const newBalance = newTransaction.type === 'credit' ? c.balance + amount : c.balance - amount;
+                        setSelectedCustomer({ ...c, balance: newBalance, transactions: [...(c.transactions || []), transaction] });
+                        return { ...c, balance: newBalance, transactions: [...(c.transactions || []), transaction] };
+                    }
+                    return c;
+                }));
+                setNewTransaction({ type: 'credit', amount: '', description: '', date: new Date().toISOString().split('T')[0] });
+                setShowAddTransaction(false);
+            };
+
+            const updateTransaction = () => {
+                if (!editingTransaction) return;
+                setCustomers(customers.map(c => {
+                    if (c.id === selectedCustomer.id) {
+                        const oldTransaction = c.transactions.find(t => t.id === editingTransaction.id);
+                        const oldAmount = oldTransaction.type === 'credit' ? oldTransaction.amount : -oldTransaction.amount;
+                        const newAmount = editingTransaction.type === 'credit' ? parseFloat(editingTransaction.amount) : -parseFloat(editingTransaction.amount);
+                        const updatedTransactions = c.transactions.map(t => t.id === editingTransaction.id ? {...editingTransaction, amount: parseFloat(editingTransaction.amount)} : t);
+                        const newBalance = c.balance - oldAmount + newAmount;
+                        setSelectedCustomer({ ...c, balance: newBalance, transactions: updatedTransactions });
+                        return { ...c, balance: newBalance, transactions: updatedTransactions };
+                    }
+                    return c;
+                }));
+                setEditingTransaction(null);
+            };
+
+            const deleteTransaction = (transactionId) => {
+                if (!confirm('Are you sure?')) return;
+                setCustomers(customers.map(c => {
+                    if (c.id === selectedCustomer.id) {
+                        const transaction = c.transactions.find(t => t.id === transactionId);
+                        const amount = transaction.type === 'credit' ? -transaction.amount : transaction.amount;
+                        const updatedTransactions = c.transactions.filter(t => t.id !== transactionId);
+                        const newBalance = c.balance + amount;
+                        setSelectedCustomer({ ...c, balance: newBalance, transactions: updatedTransactions });
+                        return { ...c, balance: newBalance, transactions: updatedTransactions };
+                    }
+                    return c;
+                }));
+            };
+
+            const deleteCustomer = (id) => {
+                if (confirm('Are you sure?')) {
+                    setCustomers(customers.filter(c => c.id !== id));
+                    if (selectedCustomer?.id === id) setSelectedCustomer(null);
+                }
+            };
+
+            const getTotalCredit = () => customers.reduce((sum, c) => sum + (c.balance > 0 ? c.balance : 0), 0);
+            const getTotalPayment = () => customers.reduce((sum, c) => sum + (c.transactions || []).reduce((tSum, t) => t.type === 'payment' ? tSum + t.amount : tSum, 0), 0);
+
             return (
                 <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-2 sm:p-4">
                     <div className="max-w-7xl mx-auto">
                         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
                             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-4 sm:p-6 text-white">
-                                <div className="flex flex-col gap-3">
-                                    <div className="flex justify-between items-center">
-                                        <div>
-                                            <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
-                                                <Icon name="ShoppingCart" className="w-6 h-6 sm:w-8 sm:h-8" />
-                                                MRV STORES
-                                            </h1>
-                                            <p className="text-blue-100 text-sm sm:text-base mt-1">Grocery & Provisions - Credit Manager</p>
-                                        </div>
-                                        <span className={`flex items-center gap-1 text-xs ${getSyncStatusColor()}`}>
-                                            <Icon name="Cloud" className="w-4 h-4" />
-                                            <span className="hidden sm:inline">
-                                                {syncStatus === 'disconnected' && 'Not Connected'}
-                                                {syncStatus === 'connected' && 'Connected'}
-                                                {syncStatus === 'synced' && 'Synced'}
-                                                {syncStatus === 'syncing' && 'Syncing...'}
-                                                {syncStatus === 'error' && 'Error'}
-                                            </span>
-                                        </span>
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2"><Icon name="ShoppingCart" className="w-6 h-6 sm:w-8 sm:h-8" /> MRV STORES</h1>
+                                        <p className="text-blue-100 text-sm sm:text-base mt-1">Grocery & Provisions - Credit Manager</p>
                                     </div>
-                                    <div className="flex flex-wrap gap-2">
-                                        <button
-                                            onClick={() => setShowSettings(!showSettings)}
-                                            className="bg-white/20 hover:bg-white/30 p-2 rounded-lg transition-colors"
-                                            title="Firebase Settings"
-                                        >
-                                            <Icon name="Settings" className="w-4 h-4 sm:w-5 sm:h-5" />
-                                        </button>
-                                        <button
-                                            onClick={() => setHideSensitive(!hideSensitive)}
-                                            className="bg-white/20 hover:bg-white/30 p-2 rounded-lg transition-colors"
-                                            title={hideSensitive ? "Show sensitive data" : "Hide sensitive data"}
-                                        >
-                                            <Icon name={hideSensitive ? "EyeOff" : "Eye"} className="w-4 h-4 sm:w-5 sm:h-5" />
-                                        </button>
-                                        <button
-                                            onClick={exportData}
-                                            className="bg-white/20 hover:bg-white/30 p-2 rounded-lg transition-colors"
-                                            title="Export data"
-                                        >
-                                            <Icon name="Download" className="w-4 h-4 sm:w-5 sm:h-5" />
-                                        </button>
-                                        <label className="bg-white/20 hover:bg-white/30 p-2 rounded-lg transition-colors cursor-pointer" title="Import data">
-                                            <Icon name="Upload" className="w-4 h-4 sm:w-5 sm:h-5" />
-                                            <input type="file" accept=".json" onChange={importData} className="hidden" />
-                                        </label>
-                                    </div>
+                                    <button onClick={() => setHideSensitive(!hideSensitive)} className="bg-white/20 hover:bg-white/30 p-2 rounded-lg">
+                                        <Icon name={hideSensitive ? "EyeOff" : "Eye"} className="w-4 h-4 sm:w-5 sm:h-5" />
+                                    </button>
                                 </div>
                             </div>
 
-                            {showSettings && (
-                                <div className="bg-yellow-50 border-b border-yellow-200 p-4 sm:p-6">
-                                    <h3 className="text-lg font-bold text-gray-800 mb-4">Firebase Configuration</h3>
-                                    <div className="grid sm:grid-cols-2 gap-3 mb-4">
-                                        <input
-                                            type="text"
-                                            placeholder="Storage Bucket"
-                                            value={firebaseConfig.storageBucket}
-                                            onChange={(e) => setFirebaseConfig({...firebaseConfig, storageBucket: e.target.value})}
-                                            className="p-2 border rounded text-sm"
-                                        />
-                                        <input
-                                            type="text"
-                                            placeholder="Messaging Sender ID"
-                                            value={firebaseConfig.messagingSenderId}
-                                            onChange={(e) => setFirebaseConfig({...firebaseConfig, messagingSenderId: e.target.value})}
-                                            className="p-2 border rounded text-sm"
-                                        />
-                                        <input
-                                            type="text"
-                                            placeholder="App ID"
-                                            value={firebaseConfig.appId}
-                                            onChange={(e) => setFirebaseConfig({...firebaseConfig, appId: e.target.value})}
-                                            className="p-2 border rounded text-sm"
-                                        /> 
-										<input
-                                            type="text"										
-											placeholder="API Key *"
-                                            value={firebaseConfig.apiKey}
-                                            onChange={(e) => setFirebaseConfig({...firebaseConfig, apiKey: e.target.value})}
-                                            className="p-2 border rounded text-sm"
-                                        />
-                                        <input
-                                            type="text"
-                                            placeholder="Auth Domain"
-                                            value={firebaseConfig.authDomain}
-                                            onChange={(e) => setFirebaseConfig({...firebaseConfig, authDomain: e.target.value})}
-                                            className="p-2 border rounded text-sm"
-                                        />
-                                        <input
-                                            type="text"
-                                            placeholder="Database URL *"
-                                            value={firebaseConfig.databaseURL}
-                                            onChange={(e) => setFirebaseConfig({...firebaseConfig, databaseURL: e.target.value})}
-                                            className="p-2 border rounded text-sm"
-                                        />
-                                        <input
-                                            type="text"
-                                            placeholder="Project ID"
-                                            value={firebaseConfig.projectId}
-                                            onChange={(e) => setFirebaseConfig({...firebaseConfig, projectId: e.target.value})}
-                                            className="p-2 border rounded text-sm"
-                                        />
-                                        
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={saveFirebaseConfig}
-                                            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 text-sm"
-                                        >
-                                            Save & Connect
-                                        </button>
-                                        <button
-                                            onClick={() => setShowSettings(false)}
-                                            className="bg-gray-300 text-gray-700 px-6 py-2 rounded hover:bg-gray-400 text-sm"
-                                        >
-                                            Cancel
-                                        </button>
-                                    </div>
-                                    <p className="text-sm text-gray-600 mt-3">
-                                        Need Firebase credentials? Visit <a href="https://console.firebase.google.com" target="_blank" className="text-blue-600 underline">Firebase Console</a> to create a project.
-                                    </p>
-                                </div>
-                            )}
-
-                            <div className="border-b border-gray-200">
-                                <div className="flex">
-                                    <button
-                                        onClick={() => setActiveTab('customers')}
-                                        className={`px-4 sm:px-6 py-3 font-medium text-sm sm:text-base ${activeTab === 'customers' 
-                                            ? 'border-b-2 border-blue-600 text-blue-600' 
-                                            : 'text-gray-500 hover:text-gray-700'}`}
-                                    >
-                                        <Icon name="Users" className="inline w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
-                                        Customers
-                                    </button>
-                                    <button
-                                        onClick={() => setActiveTab('summary')}
-                                        className={`px-4 sm:px-6 py-3 font-medium text-sm sm:text-base ${activeTab === 'summary' 
-                                            ? 'border-b-2 border-blue-600 text-blue-600' 
-                                            : 'text-gray-500 hover:text-gray-700'}`}
-                                    >
-                                        <Icon name="TrendingUp" className="inline w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
-                                        Summary
-                                    </button>
-                                    <button onClick={() => setActiveTab('analytics')} className={`px-4 sm:px-6 py-3 font-medium ${activeTab === 'analytics' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}>
+                            <div className="border-b border-gray-200 flex">
+                                <button onClick={() => setActiveTab('customers')} className={`px-4 sm:px-6 py-3 font-medium ${activeTab === 'customers' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}>
+                                    <Icon name="Users" className="inline w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" /> Customers
+                                </button>
+                                <button onClick={() => setActiveTab('summary')} className={`px-4 sm:px-6 py-3 font-medium ${activeTab === 'summary' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}>
+                                    <Icon name="TrendingUp" className="inline w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" /> Summary
+                                </button>
+                                <button onClick={() => setActiveTab('analytics')} className={`px-4 sm:px-6 py-3 font-medium ${activeTab === 'analytics' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}>
                                     📊 Analytics
                                 </button>
-                                </div>
                             </div>
 
                             <div className="p-3 sm:p-6">
@@ -785,13 +327,14 @@
                                     <div className="grid lg:grid-cols-2 gap-4 sm:gap-6">
                                         <div>
                                             <div className="flex justify-between items-center mb-4">
-                                                <h2 className="text-lg sm:text-xl font-bold text-gray-800">Customers</h2>
+                                                <h2 className="text-lg sm:text-xl font-bold text-gray-800">Customer List</h2>
                                                 <button onClick={() => setShowAddCustomer(!showAddCustomer)} className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm">
                                                     <Icon name="Plus" className="w-4 h-4 sm:w-5 sm:h-5" /> <span className="hidden sm:inline">Add</span>
                                                 </button>
                                             </div>
 
                                             <div className="mb-4 flex gap-2">
+                                                <Icon name="Search" className="w-5 h-5 text-gray-400 mt-2" />
                                                 <input type="text" placeholder="Search by name or mobile..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="flex-1 p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                                             </div>
 
@@ -825,16 +368,6 @@
                                                                     </button>
                                                                 </div>
                                                             </div>
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    sendBalanceNotification(customer);
-                                                                }}
-                                                                className="w-full bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-lg flex items-center justify-center gap-2 text-xs sm:text-sm"
-                                                            >
-                                                                <Icon name="Bell" className="w-4 h-4" />
-                                                                Send Balance Alert
-                                                            </button>
                                                         </div>
                                                     ))
                                                 )}
@@ -942,7 +475,7 @@
                                                         <p className="text-red-100 mb-1 text-sm">Total Outstanding</p>
                                                         <p className="text-2xl sm:text-3xl font-bold">{maskAmount(getTotalCredit())}</p>
                                                     </div>
-                                                    <Icon name="ShoppingCart" className="w-10 h-10 sm:w-12 sm:h-12 text-red-200" />
+                                                    <Icon name="ShoppingCart" className="w-10 h-10 text-red-200" />
                                                 </div>
                                             </div>
 
@@ -952,41 +485,36 @@
                                                         <p className="text-green-100 mb-1 text-sm">Total Payments</p>
                                                         <p className="text-2xl sm:text-3xl font-bold">{maskAmount(getTotalPayment())}</p>
                                                     </div>
-                                                    <Icon name="DollarSign" className="w-10 h-10 sm:w-12 sm:h-12 text-green-200" />
+                                                    <Icon name="DollarSign" className="w-10 h-10 text-green-200" />
                                                 </div>
                                             </div>
 
-                                            <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-4 sm:p-6 rounded-xl shadow-lg sm:col-span-2 lg:col-span-1">
+                                            <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-4 sm:p-6 rounded-xl shadow-lg">
                                                 <div className="flex items-center justify-between">
                                                     <div>
                                                         <p className="text-purple-100 mb-1 text-sm">Total Customers</p>
                                                         <p className="text-2xl sm:text-3xl font-bold">{customers.length}</p>
                                                     </div>
-                                                    <Icon name="Users" className="w-10 h-10 sm:w-12 sm:h-12 text-purple-200" />
+                                                    <Icon name="Users" className="w-10 h-10 text-purple-200" />
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 overflow-x-auto">
+                                        <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6">
                                             <div className="flex justify-between items-center mb-4 flex-col sm:flex-row gap-3">
-                                                <h3 className="text-lg sm:text-xl font-bold text-gray-800">Customer Summary</h3>
+                                                <h3 className="text-lg sm:text-xl font-bold text-gray-800">Customer Balances</h3>
                                                 <div className="flex gap-2 w-full sm:w-auto">
-                                                     
+                                                    <Icon name="Search" className="w-5 h-5 text-gray-400 mt-2" />
                                                     <input type="text" placeholder="Search..." value={summarySearchQuery} onChange={(e) => setSummarySearchQuery(e.target.value)} className="flex-1 sm:flex-none p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                                                 </div>
                                             </div>
                                             <div className="overflow-x-auto">
-                                              <table className="w-full min-w-full">
+                                                <table className="w-full min-w-full">
                                                     <thead>
                                                         <tr className="border-b border-gray-200">
                                                             <th className="text-left py-3 px-2 sm:px-4 font-semibold text-gray-700 text-xs sm:text-sm">
                                                                 <button onClick={() => handleSummarySort('name')} className="hover:text-blue-600 cursor-pointer flex items-center gap-1">
                                                                     Customer {summarySortConfig.key === 'name' && <Icon name={summarySortConfig.direction === 'asc' ? 'ChevronUp' : 'ChevronDown'} className="w-4 h-4" />}
-                                                                </button>
-                                                            </th>
-                                                            <th className="text-right py-3 px-2 sm:px-4 font-semibold text-gray-700 text-xs sm:text-sm">
-                                                                <button onClick={() => handleSummarySort('balance')} className="hover:text-blue-600 cursor-pointer flex items-center gap-1 ml-auto">
-                                                                    Balance {summarySortConfig.key === 'balance' && <Icon name={summarySortConfig.direction === 'asc' ? 'ChevronUp' : 'ChevronDown'} className="w-4 h-4" />}
                                                                 </button>
                                                             </th>
                                                             <th className="text-left py-3 px-2 sm:px-4 font-semibold text-gray-700 text-xs sm:text-sm">
@@ -999,30 +527,30 @@
                                                                     Trans. {summarySortConfig.key === 'transactions' && <Icon name={summarySortConfig.direction === 'asc' ? 'ChevronUp' : 'ChevronDown'} className="w-4 h-4" />}
                                                                 </button>
                                                             </th>
+                                                            <th className="text-right py-3 px-2 sm:px-4 font-semibold text-gray-700 text-xs sm:text-sm">
+                                                                <button onClick={() => handleSummarySort('balance')} className="hover:text-blue-600 cursor-pointer flex items-center gap-1 ml-auto">
+                                                                    Balance {summarySortConfig.key === 'balance' && <Icon name={summarySortConfig.direction === 'asc' ? 'ChevronUp' : 'ChevronDown'} className="w-4 h-4" />}
+                                                                </button>
+                                                            </th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
                                                         {filteredAndSortedSummary.map(customer => (
                                                             <tr key={customer.id} className="border-b border-gray-100 hover:bg-gray-50">
                                                                 <td className="py-3 px-2 sm:px-4 text-xs sm:text-sm">{maskText(customer.name)}</td>
-                                                                <td className={`py-3 px-2 sm:px-4 text-right font-bold text-xs sm:text-sm ${customer.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                                                    {maskAmount(customer.balance)}
-                                                                </td>
                                                                 <td className="py-3 px-2 sm:px-4 text-gray-600 text-xs sm:text-sm">{maskText(customer.mobile)}</td>
                                                                 <td className="py-3 px-2 sm:px-4 text-gray-600 text-xs sm:text-sm">{customer.transactions ? customer.transactions.length : 0}</td>
+                                                                <td className={`py-3 px-2 sm:px-4 text-right font-bold text-xs sm:text-sm ${customer.balance >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                                                    {maskAmount(customer.balance)}
+                                                                </td>
                                                             </tr>
                                                         ))}
                                                     </tbody>
                                                 </table>
-                                                 
-                                                {customers.length === 0 && (
+                                                {filteredAndSortedSummary.length === 0 && (
                                                     <p className="text-center text-gray-500 py-8 text-sm">No customers to display</p>
                                                 )}
                                             </div>
-                                        </div>
-                                    </div>
-                                )}
-
                                 {activeTab === 'analytics' && (
                                     <div>
                                         <h2 className="text-lg sm:text-2xl font-bold text-gray-800 mb-4 sm:mb-6">📊 Analytics - Last 14 Days</h2>
@@ -1057,4 +585,3 @@
     </script>
 </body>
 </html>
-      
