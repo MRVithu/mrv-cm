@@ -815,7 +815,7 @@
                                                 <div className="flex items-center justify-between">
                                                     <div>
                                                         <p className="text-red-100 mb-1 text-sm">Total Outstanding</p>
-                                                        <p className="text-2xl sm:text-3xl font-bold">{hideSensitive ? 'Rs.•••••' : `Rs.${getTotalCredit().toFixed(2)}`}</p>
+                                                        <p className="text-2xl sm:text-3xl font-bold">{maskAmount(getTotalCredit())}</p>
                                                     </div>
                                                     <Icon name="ShoppingCart" className="w-10 h-10 sm:w-12 sm:h-12 text-red-200" />
                                                 </div>
@@ -825,7 +825,7 @@
                                                 <div className="flex items-center justify-between">
                                                     <div>
                                                         <p className="text-green-100 mb-1 text-sm">Total Payments</p>
-                                                        <p className="text-2xl sm:text-3xl font-bold">{hideSensitive ? 'Rs.•••••' : `Rs.${getTotalPayment().toFixed(2)}`}</p>
+                                                        <p className="text-2xl sm:text-3xl font-bold">{maskAmount(getTotalPayment())}</p>
                                                     </div>
                                                     <Icon name="DollarSign" className="w-10 h-10 sm:w-12 sm:h-12 text-green-200" />
                                                 </div>
