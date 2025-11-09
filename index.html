@@ -652,26 +652,80 @@
             }, [activeTab, customers]);
 
             const getTicklerAlerts = () => {
-                const thirtyDaysAgo = new Date();
-                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+                const fourteenDaysAgo = new Date();
+                fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+                const fourteenDaysAgoStr = fourteenDaysAgo.toISOString().split('T')[0];
 
                 return customers
                     .filter(customer => {
-                        // Must have credit balance > 0
                         if (customer.balance <= 0) return false;
-
-                        // Check if purchased in last 30 days
-                        const hasPurchaseInLast30 = (customer.transactions || []).some(trans => {
-                            return trans.type === 'credit' && trans.date >= thirtyDaysAgoStr;
+                        const hasPurchaseInLast14 = (customer.transactions || []).some(trans => {
+                            return trans.type === 'credit' && trans.date >= fourteenDaysAgoStr;
                         });
-
-                        // We want customers who have NOT purchased in last 30 days
-                        return !hasPurchaseInLast30;
+                        return !hasPurchaseInLast14;
                     })
                     .sort((a, b) => b.balance - a.balance);
             };
 
+            const getAlertType = (customer) => {
+                const fourteenDaysAgo = new Date();
+                fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+                const fourteenDaysAgoStr = fourteenDaysAgo.toISOString().split('T')[0];
+
+                const thirtyDaysAgo = new Date();
+                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+
+                if (customer.balance <= 0) return null;
+
+                const lastCreditTrans = (customer.transactions || [])
+                    .filter(t => t.type === 'credit')
+                    .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+
+                if (!lastCreditTrans) return null;
+
+                if (lastCreditTrans.date < thirtyDaysAgoStr) {
+                    return 'red'; // Last purchase > 30 days ago
+                } else if (lastCreditTrans.date < fourteenDaysAgoStr) {
+                    return 'orange'; // Last purchase > 14 days but < 30 days ago
+                }
+
+                return null;
+            };
+
+            const ticklerCustomers = useMemo(() => getTicklerAlerts(), [customers]);
+
+            const getAlertCounts = useMemo(() => {
+                const fourteenDaysAgo = new Date();
+                fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+                const fourteenDaysAgoStr = fourteenDaysAgo.toISOString().split('T')[0];
+
+                const thirtyDaysAgo = new Date();
+                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+
+                let orangeCount = 0, redCount = 0, orangeAmount = 0, redAmount = 0;
+
+                customers.forEach(customer => {
+                    if (customer.balance <= 0) return;
+
+                    const lastCreditTrans = (customer.transactions || [])
+                        .filter(t => t.type === 'credit')
+                        .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+
+                    if (!lastCreditTrans) return;
+
+                    if (lastCreditTrans.date < thirtyDaysAgoStr) {
+                        redCount++;
+                        redAmount += customer.balance;
+                    } else if (lastCreditTrans.date < fourteenDaysAgoStr) {
+                        orangeCount++;
+                        orangeAmount += customer.balance;
+                    }
+                });
+
+                return { orangeCount, redCount, orangeAmount, redAmount };
+            }, [customers]);
                        
             return (
                 <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-2 sm:p-4">
@@ -824,8 +878,8 @@
                                         Summary
                                     </button>
                                     <button onClick={() => setActiveTab('analytics')} className={`px-4 sm:px-6 py-3 font-medium ${activeTab === 'analytics' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}>
-                                    📊 Analytics
-                                </button>
+                                        📊 Analytics
+                                    </button>
                                 </div>
                             </div>
 
@@ -860,35 +914,92 @@
                                                 {filteredAndSortedCustomers.length === 0 ? (
                                                     <p className="text-gray-500 text-center py-8 text-sm">No customers found</p>
                                                 ) : (
-                                                    filteredAndSortedCustomers.map(customer => (
-                                                        <div key={customer.id} onClick={() => setSelectedCustomer(customer)} className={`p-3 sm:p-4 border rounded-lg cursor-pointer ${selectedCustomer?.id === customer.id ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}>
-                                                            <div className="flex justify-between items-start mb-2">
-                                                                <div>
-                                                                    <h3 className="font-semibold text-gray-800 text-sm">{maskText(customer.name)}</h3>
-                                                                    <p className="text-xs text-gray-600">{maskText(customer.mobile)}</p>
-                                                                </div>
-                                                                <div className="text-right">
-                                                                    <p className={`font-bold text-lg ${customer.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>{maskAmount(customer.balance)}</p>
-                                                                    <button onClick={(e) => { e.stopPropagation(); deleteCustomer(customer.id); }} className="text-red-500 hover:text-red-700 mt-1">
-                                                                        <Icon name="Trash2" className="w-4 h-4" />
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    sendBalanceNotification(customer);
-                                                                }}
-                                                                className="w-full bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-lg flex items-center justify-center gap-2 text-xs sm:text-sm"
+                                                    filteredAndSortedCustomers.map(customer => {
+                                                        const alertType = getAlertType(customer);
+
+                                                        return (
+                                                            <div 
+                                                                key={customer.id} 
+                                                                onClick={() => setSelectedCustomer(customer)} 
+                                                                className={`p-3 sm:p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                                                                    alertType === 'red'
+                                                                        ? 'border-red-400 bg-red-50 shadow-md'
+                                                                        : alertType === 'orange'
+                                                                        ? 'border-orange-400 bg-orange-50 shadow-md'
+                                                                        : selectedCustomer?.id === customer.id 
+                                                                        ? 'border-blue-600 bg-blue-50' 
+                                                                        : 'border-gray-200 hover:border-blue-300'
+                                                                }`}
                                                             >
-                                                                <Icon name="Bell" className="w-4 h-4" />
-                                                                Send Balance Alert
-                                                            </button>
-                                                        </div>
-                                                    ))
+                                                                {/* Alert Badge */}
+                                                                {alertType && (
+                                                                    <div className={`flex items-center gap-2 mb-2 pb-2 border-b ${
+                                                                        alertType === 'red' ? 'border-red-200' : 'border-orange-200'
+                                                                    }`}>
+                                                                        <Icon name="Bell" className={`w-4 h-4 animate-bounce ${
+                                                                            alertType === 'red' ? 'text-red-600' : 'text-orange-600'
+                                                                        }`} />
+                                                                        <span className={`text-xs font-bold ${
+                                                                            alertType === 'red' ? 'text-red-700' : 'text-orange-700'
+                                                                        }`}>
+                                                                            {alertType === 'red' ? '⚠️ Not Purchased >30 Days' : '⚡ Not Purchased >14 Days'}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Customer Info */}
+                                                                <div className="flex justify-between items-start mb-2">
+                                                                    <div>
+                                                                        <h3 className="font-semibold text-gray-800 text-sm">{maskText(customer.name)}</h3>
+                                                                        <p className="text-xs text-gray-600">{maskText(customer.mobile)}</p>
+                                                                    </div>
+                                                                    <div className="text-right">
+                                                                        <p className={`font-bold text-lg ${
+                                                                            alertType === 'red'
+                                                                                ? 'text-red-700'
+                                                                                : alertType === 'orange'
+                                                                                ? 'text-orange-700'
+                                                                                : customer.balance > 0
+                                                                                ? 'text-green-600'
+                                                                                : 'text-red-600'
+                                                                        }`}>
+                                                                            {maskAmount(customer.balance)}
+                                                                        </p>
+                                                                        <button 
+                                                                            onClick={(e) => { 
+                                                                                e.stopPropagation(); 
+                                                                                deleteCustomer(customer.id); 
+                                                                            }} 
+                                                                            className="text-red-500 hover:text-red-700 mt-1"
+                                                                        >
+                                                                            <Icon name="Trash2" className="w-4 h-4" />
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Send Alert Button */}
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        sendBalanceNotification(customer);
+                                                                    }}
+                                                                    className={`w-full text-white px-3 py-2 rounded-lg flex items-center justify-center gap-2 text-xs sm:text-sm transition-all ${
+                                                                        alertType === 'red'
+                                                                            ? 'bg-red-600 hover:bg-red-700'
+                                                                            : alertType === 'orange'
+                                                                            ? 'bg-orange-600 hover:bg-orange-700'
+                                                                            : 'bg-green-500 hover:bg-green-600'
+                                                                    }`}
+                                                                >
+                                                                    <Icon name="Bell" className={`w-4 h-4 ${alertType ? 'animate-bounce' : ''}`} />
+                                                                    Send Balance Alert
+                                                                </button>
+                                                            </div>
+                                                        );
+                                                    })
                                                 )}
                                             </div>
-                                        </div>
+                                          </div>
 
                                         <div>
                                             {selectedCustomer ? (
@@ -1129,7 +1240,33 @@
                                                     <Icon name="DollarSign" className="w-10 h-10 sm:w-12 sm:h-12 text-teal-400 ml-4" />
                                                 </div>
                                             </div>
+
+                                            {/* Orange Alert > 14 Days */}
+                                            <div className="bg-gradient-to-br from-orange-50 to-orange-100 border-2 border-orange-300 rounded-lg p-4 sm:p-5 shadow-md hover:shadow-lg transition-shadow">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex-1">
+                                                        <p className="text-orange-700 font-bold text-xs sm:text-sm mb-2">⚡ Warning (>14 Days)</p>
+                                                        <p className="text-2xl sm:text-3xl font-bold text-orange-900">{getAlertCounts.orangeCount}</p>
+                                                        <p className="text-xs text-orange-600 mt-2 font-semibold">Rs.{formatCurrency(getAlertCounts.orangeAmount)}</p>
+                                                    </div>
+                                                    <Icon name="Bell" className="w-10 h-10 sm:w-12 sm:h-12 text-orange-400 ml-4 animate-pulse" />
+                                                </div>
+                                            </div>
+
+                                            {/* Red Alert > 30 Days */}
+                                            <div className="bg-gradient-to-br from-red-50 to-red-100 border-2 border-red-300 rounded-lg p-4 sm:p-5 shadow-md hover:shadow-lg transition-shadow">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex-1">
+                                                        <p className="text-red-700 font-bold text-xs sm:text-sm mb-2">⚠️ Critical (>30 Days)</p>
+                                                        <p className="text-2xl sm:text-3xl font-bold text-red-900">{getAlertCounts.redCount}</p>
+                                                        <p className="text-xs text-red-600 mt-2 font-semibold">Rs.{formatCurrency(getAlertCounts.redAmount)}</p>
+                                                    </div>
+                                                    <Icon name="Bell" className="w-10 h-10 sm:w-12 sm:h-12 text-red-400 ml-4 animate-bounce" />
+                                                </div>
+                                            </div>
                                         </div>
+
+
                                         {/* Tickler Alerts Section */}
                                         {getTicklerAlerts().length > 0 && (
                                             <div className="mb-6 bg-gradient-to-r from-orange-50 to-red-50 border-2 border-orange-400 rounded-lg p-4 sm:p-5">
