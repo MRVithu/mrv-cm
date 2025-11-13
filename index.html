@@ -1168,7 +1168,15 @@
                                                                 <td className={`py-3 px-2 sm:px-4 text-right font-bold text-xs sm:text-sm ${customer.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
                                                                     {maskAmount(customer.balance)}
                                                                 </td>
-                                                                <td className="py-3 px-2 sm:px-4 text-gray-600 text-xs sm:text-sm">{maskText(customer.mobile)}</td>
+                                                                <td className="py-3 px-2 sm:px-4 text-gray-600 text-xs sm:text-sm">
+                                                                    <a
+                                                                        href={`tel:${customer.mobile}`}
+                                                                        className="text-blue-600 hover:underline"
+                                                                        onClick={(e) => e.stopPropagation()} // optional: prevents triggering row click
+                                                                    >
+                                                                        {maskText(customer.mobile)}
+                                                                    </a>
+                                                                </td>
                                                                 <td className="py-3 px-2 sm:px-4 text-gray-600 text-xs sm:text-sm">{customer.transactions ? customer.transactions.length : 0}</td>
                                                             </tr>
                                                         ))}
