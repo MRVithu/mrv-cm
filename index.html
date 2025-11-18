@@ -81,6 +81,11 @@
             return icons[name] || null;
         };
 
+        const tamilMonths = [
+                            "சித்திரை", "வைகாசி", "ஆனி", "ஆடி", "ஆவணி", "புரட்டாசி",
+                            "ஐப்பசி", "கார்த்திகை", "மார்கழி", "தை", "மாசி", "பங்குனி"
+                            ];
+
         const MRVStoresApp = () => {
             const [customers, setCustomers] = useState([]);
             const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -99,6 +104,8 @@
             const [summarySortConfig, setSummarySortConfig] = useState({ key: null, direction: 'asc' });
             const chartRef = React.useRef(null);
             const chartInstance = React.useRef(null);
+
+
 
             const [firebaseConfig, setFirebaseConfig] = useState({
                   apiKey: "AIzaSyDK6yValXuea-QwyDGnSysqVBoOAmCQ_SI",
@@ -305,12 +312,7 @@
             };
 
             const sendTransactionNotification = (customer, transaction, newBalance) => {
-                const now = new Date();
-                const formattedDate = now.toLocaleDateString('ta-LK', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric',
-                });
+                const formattedDate = getCurrentDate();
 
                 const transactionType =
                     transaction.type === 'credit'
@@ -398,22 +400,26 @@
                 }
             };
 
+            function getCurrentDate() {
+                 const now = new Date();
+                const day = now.getDate();
+                const month = tamilMonths[now.getMonth()];
+                const year = now.getFullYear();
+
+                const formattedDate = `${day} ${month} ${year}`;
+
+                return formattedDate;
+            }
+
+
            const sendBalanceNotification = (customer) => {
-                const now = new Date();
-                const formattedDate = now.toLocaleString('ta-LK', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: true,
-                });
+                const formattedDate = getCurrentDate();
 
                 // short & clean Tamil message (safe for SMS)
                 const message = 
             `வணக்கம் ${customer.name},
-            ${formattedDate} நிலவரப்படி உங்கள் MRV STORES கணக்கின் நிலுவை: Rs.${customer.balance.toFixed(2)}.
-            நன்றி - MRV STORES`;
+            ${formattedDate} வரை உங்கள் MRV STORES நிலுவை: ரூ.${customer.balance.toFixed(2)}.
+            நன்றி — MRV STORES`;
 
                 const encodedMessage = encodeURIComponent(message);
                 const smsUrl = `sms:${customer.mobile}?body=${encodedMessage}`;
