@@ -431,8 +431,8 @@
                 // short & clean Tamil message (safe for SMS)
                 const message = 
             `வணக்கம் ${customer.name},
-            ${formattedDate} வரை MRV STORES கணக்கில் உங்கள் நிலுவை: ரூ.${customer.balance.toFixed(2)}.
-            நன்றி — MRV STORES`;
+        ${formattedDate} வரை MRV STORES கணக்கில் உங்கள் நிலுவை: ரூ.${customer.balance.toFixed(2)}.
+        நன்றி — MRV STORES`;
 
                 const encodedMessage = encodeURIComponent(message);
                 const smsUrl = `sms:${customer.mobile}?body=${encodedMessage}`;
