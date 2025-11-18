@@ -402,8 +402,8 @@
 
             function getCurrentDate() {
                 const tamilMonths = [
-                    "சித்திரை", "வைகாசி", "ஆனி", "ஆடி", "ஆவணி", "புரட்டாசி",
-                    "ஐப்பசி", "கார்த்திகை", "மார்கழி", "தை", "மாசி", "பங்குனி"
+                    "தை", "மாசி", "பங்குனி","சித்திரை", "வைகாசி", "ஆனி", "ஆடி", "ஆவணி", "புரட்டாசி",
+                    "ஐப்பசி", "கார்த்திகை", "மார்கழி"
                 ];
 
                 const now = new Date();
@@ -431,7 +431,7 @@
                 // short & clean Tamil message (safe for SMS)
                 const message = 
             `வணக்கம் ${customer.name},
-            ${formattedDate} வரை உங்கள் MRV STORES நிலுவை: ரூ.${customer.balance.toFixed(2)}.
+            ${formattedDate} வரை MRV STORES கணக்கில் உங்கள் நிலுவை: ரூ.${customer.balance.toFixed(2)}.
             நன்றி — MRV STORES`;
 
                 const encodedMessage = encodeURIComponent(message);
