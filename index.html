@@ -401,15 +401,28 @@
             };
 
             function getCurrentDate() {
-                 const now = new Date();
+                const tamilMonths = [
+                    "சித்திரை", "வைகாசி", "ஆனி", "ஆடி", "ஆவணி", "புரட்டாசி",
+                    "ஐப்பசி", "கார்த்திகை", "மார்கழி", "தை", "மாசி", "பங்குனி"
+                ];
+
+                const now = new Date();
+
+                // Date
                 const day = now.getDate();
                 const month = tamilMonths[now.getMonth()];
                 const year = now.getFullYear();
-
                 const formattedDate = `${day} ${month} ${year}`;
 
-                return formattedDate;
+                // 24-hour Time
+                const hours = now.getHours().toString().padStart(2, "0");
+                const minutes = now.getMinutes().toString().padStart(2, "0");
+
+                const formattedTime = `${hours}:${minutes}`;
+
+                return `${formattedDate} ${formattedTime}`;
             }
+
 
 
            const sendBalanceNotification = (customer) => {
