@@ -314,7 +314,7 @@
             const sendTransactionNotification = (customer, transaction, newBalance, transDate) => {
                 const today = new Date().toISOString().split('T')[0];
                 const isPastDate = transDate && transDate !== today;
-                const formattedDate = isPastDate ? transDate.split('-').reverse().join('-') + ' (past entry)' : getCurrentDate();
+                const formattedDate = isPastDate ? transDate.split('-').reverse().join('-') + ' (past entry)' : "";
 
                 const transactionType =
                     transaction.type === 'credit'
@@ -322,8 +322,8 @@
                         : 'கட்டணம்';
 
                 const message =
-            `MRV STORES: ${customer.name}, ${transactionType} Rs.${transaction.amount.toFixed(2)}.
-            நிலுவை: Rs.${newBalance.toFixed(2)} (${formattedDate}).
+            `MRV STORES: ${customer.name}, ${transactionType} Rs.${transaction.amount.toFixed(2)} (${formattedDate}).
+            நிலுவை: Rs.${newBalance.toFixed(2)} ${getCurrentDate()}.
             
             நன்றி - MRV STORES`;
 
