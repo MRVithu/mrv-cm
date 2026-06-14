@@ -104,6 +104,7 @@
             const [summarySortConfig, setSummarySortConfig] = useState({ key: null, direction: 'asc' });
             const chartRef = React.useRef(null);
             const chartInstance = React.useRef(null);
+            const [editingLimit, setEditingLimit] = useState(null); // { customerId, value }
 
 
 
@@ -259,6 +260,15 @@
                 }
                 setNewCustomer({ name: '', mobile: '', email: '' });
                 setShowAddCustomer(false);
+            };
+
+            const saveCreditLimit = (customerId, limit) => {
+                const updatedCustomers = customers.map(c =>
+                    c.id === customerId ? { ...c, creditLimit: parseFloat(limit) || 0 } : c
+                );
+                setCustomers(updatedCustomers);
+                if (database) saveDataToFirebase(updatedCustomers);
+                setEditingLimit(null);
             };
 
             const addTransaction = () => {
@@ -520,6 +530,58 @@
                 
                 // Return object with today's totals
                 return { credit, payment };
+            };
+
+            const getCustomerScore = (customer) => {
+                const transactions = customer.transactions || [];
+                const credits = transactions.filter(t => t.type === 'credit');
+                const payments = transactions.filter(t => t.type === 'payment');
+
+                if (credits.length === 0) return { returnPct: 0, speedScore: 0, combinedScore: 0, suggestedLimit: 0 };
+
+                // Repayment Ratio (0–100)
+                const totalCredit = credits.reduce((s, t) => s + t.amount, 0);
+                const totalPayment = payments.reduce((s, t) => s + t.amount, 0);
+                const repaymentRatio = Math.min((totalPayment / totalCredit) * 100, 100);
+
+                // Speed Score — avg days between each credit and next payment after it
+                let speedDays = [];
+                credits.forEach(cr => {
+                    const crDate = new Date(cr.date);
+                    const nextPayment = payments
+                        .filter(p => new Date(p.date) >= crDate)
+                        .sort((a, b) => new Date(a.date) - new Date(b.date))[0];
+                    if (nextPayment) {
+                        const days = (new Date(nextPayment.date) - crDate) / (1000 * 60 * 60 * 24);
+                        speedDays.push(days);
+                    }
+                });
+
+                // Faster repayment = higher score. 0 days=100, 30 days=50, 60+ days=0
+                const avgDays = speedDays.length > 0 ? speedDays.reduce((s, d) => s + d, 0) / speedDays.length : 60;
+                const speedScore = Math.max(0, Math.min(100, 100 - (avgDays / 60) * 100));
+
+                // Combined Score (ratio 60% weight, speed 40% weight)
+                const combinedScore = Math.round((repaymentRatio * 0.6) + (speedScore * 0.4));
+
+                // Suggested Credit Limit based on score + avg monthly spend
+                const monthlyAvg = totalCredit / Math.max(1, credits.length) * 4;
+                const limitMultiplier = combinedScore >= 80 ? 1.5 : combinedScore >= 60 ? 1.0 : combinedScore >= 40 ? 0.7 : 0.4;
+                const suggestedLimit = Math.round((monthlyAvg * limitMultiplier) / 100) * 100;
+
+                return {
+                    repaymentRatio: Math.round(repaymentRatio),
+                    speedScore: Math.round(speedScore),
+                    combinedScore,
+                    suggestedLimit
+                };
+            };
+
+            const getScoreColor = (score) => {
+                if (score >= 80) return { bg: 'bg-green-100', text: 'text-green-700', bar: '#22c55e', label: 'Excellent' };
+                if (score >= 60) return { bg: 'bg-blue-100', text: 'text-blue-700', bar: '#3b82f6', label: 'Good' };
+                if (score >= 40) return { bg: 'bg-yellow-100', text: 'text-yellow-700', bar: '#f59e0b', label: 'Fair' };
+                return { bg: 'bg-red-100', text: 'text-red-700', bar: '#ef4444', label: 'Poor' };
             };
 
             const getSyncStatusColor = () => {
@@ -1027,6 +1089,79 @@
                                                                     <Icon name="Bell" className={`w-4 h-4 ${alertType ? 'animate-bounce' : ''}`} />
                                                                     Send Balance Alert
                                                                 </button>
+
+                                                                {/* Score & Credit Limit Panel */}
+                                                                {(() => {
+                                                                    const score = getCustomerScore(customer);
+                                                                    const color = getScoreColor(score.combinedScore);
+                                                                    const hasTransactions = (customer.transactions || []).length > 0;
+                                                                    const overLimit = customer.creditLimit && customer.balance > customer.creditLimit;
+
+                                                                    return hasTransactions ? (
+                                                                        <div className={`mt-2 p-2 rounded-lg ${color.bg} border border-opacity-30`}>
+                                                                            {/* Score Row */}
+                                                                            <div className="flex justify-between items-center mb-1">
+                                                                                <span className={`text-xs font-bold ${color.text}`}>
+                                                                                    Return Score: {score.combinedScore}% — {color.label}
+                                                                                </span>
+                                                                                <span className="text-xs text-gray-500">
+                                                                                    💳 {score.repaymentRatio}% | ⚡ {score.speedScore}%
+                                                                                </span>
+                                                                            </div>
+
+                                                                            {/* Score Bar */}
+                                                                            <div className="w-full bg-gray-200 rounded-full h-1.5 mb-2">
+                                                                                <div
+                                                                                    className="h-1.5 rounded-full transition-all"
+                                                                                    style={{ width: `${score.combinedScore}%`, backgroundColor: color.bar }}
+                                                                                />
+                                                                            </div>
+
+                                                                            {/* Credit Limit Row */}
+                                                                            <div className="flex items-center justify-between gap-2">
+                                                                                <span className="text-xs text-gray-600 font-medium">Credit Limit:</span>
+                                                                                {editingLimit?.customerId === customer.id ? (
+                                                                                    <div className="flex gap-1 flex-1 justify-end" onClick={e => e.stopPropagation()}>
+                                                                                        <input
+                                                                                            type="number"
+                                                                                            value={editingLimit.value}
+                                                                                            onChange={e => setEditingLimit({ ...editingLimit, value: e.target.value })}
+                                                                                            className="w-24 p-1 border rounded text-xs text-right"
+                                                                                            autoFocus
+                                                                                        />
+                                                                                        <button
+                                                                                            onClick={() => saveCreditLimit(customer.id, editingLimit.value)}
+                                                                                            className="bg-green-500 text-white px-2 py-1 rounded text-xs"
+                                                                                        >✓</button>
+                                                                                        <button
+                                                                                            onClick={() => setEditingLimit(null)}
+                                                                                            className="bg-gray-300 text-gray-700 px-2 py-1 rounded text-xs"
+                                                                                        >✕</button>
+                                                                                    </div>
+                                                                                ) : (
+                                                                                    <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                                                                                        {customer.creditLimit ? (
+                                                                                            <span className={`text-xs font-bold ${overLimit ? 'text-red-600' : 'text-gray-700'}`}>
+                                                                                                Rs.{formatCurrency(customer.creditLimit)}
+                                                                                                {overLimit && ' ⚠️ Over!'}
+                                                                                            </span>
+                                                                                        ) : (
+                                                                                            <span className="text-xs text-gray-400 italic">
+                                                                                                Suggested: Rs.{formatCurrency(score.suggestedLimit)}
+                                                                                            </span>
+                                                                                        )}
+                                                                                        <button
+                                                                                            onClick={() => setEditingLimit({ customerId: customer.id, value: customer.creditLimit || score.suggestedLimit })}
+                                                                                            className="text-blue-500 hover:text-blue-700"
+                                                                                        >
+                                                                                            <Icon name="Edit2" className="w-3 h-3" />
+                                                                                        </button>
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                    ) : null;
+                                                                })()}
                                                             </div>
                                                         );
                                                     })
