@@ -104,7 +104,6 @@
             const [summarySortConfig, setSummarySortConfig] = useState({ key: null, direction: 'asc' });
             const chartRef = React.useRef(null);
             const chartInstance = React.useRef(null);
-            const [editingLimit, setEditingLimit] = useState(null); // { customerId, value }
 
 
 
@@ -262,15 +261,6 @@
                 setShowAddCustomer(false);
             };
 
-            const saveCreditLimit = (customerId, limit) => {
-                const updatedCustomers = customers.map(c =>
-                    c.id === customerId ? { ...c, creditLimit: parseFloat(limit) || 0 } : c
-                );
-                setCustomers(updatedCustomers);
-                if (database) saveDataToFirebase(updatedCustomers);
-                setEditingLimit(null);
-            };
-
             const addTransaction = () => {
                 if (!newTransaction.amount || !selectedCustomer) {
                     alert('Please fill in all required fields');
@@ -332,7 +322,7 @@
                         : 'கட்டணம்';
 
                const message =
-                    `MRV STORES: ${customer.name}, ${transactionType} Rs.${transaction.amount.toFixed(2)}${formattedDate ? ` (${formattedDate})` : ''}.
+                `MRV STORES: ${customer.name}, ${transactionType} Rs.${transaction.amount.toFixed(2)}${formattedDate ? ` (${formattedDate})` : ''}.
                 நிலுவை: Rs.${newBalance.toFixed(2)} (${getCurrentDate()}).
 
                 நன்றி - MRV STORES`;
@@ -530,151 +520,6 @@
                 
                 // Return object with today's totals
                 return { credit, payment };
-            };
-
-            const getCustomerScore = (customer) => {
-                const transactions = customer.transactions || [];
-                const credits = transactions.filter(t => t.type === 'credit');
-                const payments = transactions.filter(t => t.type === 'payment');
-
-                if (credits.length === 0) return { 
-                    score: 300, repaymentRatio: 0, speedScore: 0, 
-                    regularityScore: 0, balanceRatio: 0, ageScore: 0,
-                    tier: 'Poor', suggestedLimit: 0, flags: [] 
-                };
-
-                // ── FACTOR 1: Repayment Ratio (30%) ──────────────────────────
-                const totalCredit = credits.reduce((s, t) => s + t.amount, 0);
-                const totalPayment = payments.reduce((s, t) => s + t.amount, 0);
-                const repaymentRatio = Math.min((totalPayment / totalCredit) * 100, 100);
-
-                // ── FACTOR 2: Repayment Speed (25%) ──────────────────────────
-                // avg days from each credit to the next payment after it
-                let speedDays = [];
-                credits.forEach(cr => {
-                    const crDate = new Date(cr.date);
-                    const nextPay = payments
-                        .filter(p => new Date(p.date) >= crDate)
-                        .sort((a, b) => new Date(a.date) - new Date(b.date))[0];
-                    if (nextPay) {
-                        const days = (new Date(nextPay.date) - crDate) / 86400000;
-                        speedDays.push(Math.min(days, 60));
-                    }
-                });
-                const avgDays = speedDays.length > 0 
-                    ? speedDays.reduce((s, d) => s + d, 0) / speedDays.length 
-                    : 60;
-                // 0 days → 100, 60+ days → 0
-                const speedScore = Math.max(0, 100 - (avgDays / 60) * 100);
-
-                // ── FACTOR 3: Purchase Regularity (20%) ──────────────────────
-                // how many months had at least one purchase vs account age
-                const allDates = transactions.map(t => t.date).sort();
-                const firstDate = new Date(allDates[0]);
-                const today = new Date();
-                const accountAgeMonths = Math.max(1,
-                    (today.getFullYear() - firstDate.getFullYear()) * 12 +
-                    (today.getMonth() - firstDate.getMonth())
-                );
-                const activeMonths = new Set(
-                    credits.map(t => t.date.substring(0, 7)) // "YYYY-MM"
-                ).size;
-                const regularityScore = Math.min((activeMonths / accountAgeMonths) * 100, 100);
-
-                // ── FACTOR 4: Balance Ratio (15%) ────────────────────────────
-                // lower outstanding balance vs total ever credited = better
-                const balanceRatioScore = totalCredit > 0
-                    ? Math.max(0, (1 - (customer.balance / totalCredit)) * 100)
-                    : 100;
-
-                // ── FACTOR 5: Account Age (10%) ──────────────────────────────
-                // capped at 24 months = full score
-                const ageScore = Math.min((accountAgeMonths / 24) * 100, 100);
-
-                // ── WEIGHTED COMBINED (maps 0–100 → 300–900) ─────────────────
-                const rawScore =
-                    (repaymentRatio  * 0.30) +
-                    (speedScore      * 0.25) +
-                    (regularityScore * 0.20) +
-                    (balanceRatioScore * 0.15) +
-                    (ageScore        * 0.10);
-
-                let score = Math.round(300 + (rawScore / 100) * 600);
-
-                // ── NEGATIVE FLAGS (−50 pts each) ────────────────────────────
-                const flags = [];
-
-                // Flag 1: no payment in last 30 days while balance > 0
-                if (customer.balance > 0) {
-                    const thirtyAgo = new Date();
-                    thirtyAgo.setDate(thirtyAgo.getDate() - 30);
-                    const recentPayment = payments.some(p => new Date(p.date) >= thirtyAgo);
-                    if (!recentPayment) {
-                        flags.push('No payment >30 days');
-                        score -= 50;
-                    }
-                }
-
-                // Flag 2: balance exceeds set credit limit
-                if (customer.creditLimit && customer.balance > customer.creditLimit) {
-                    flags.push('Over credit limit');
-                    score -= 50;
-                }
-
-                // Flag 3: 3+ consecutive months with no payment
-                const last3Months = [0, 1, 2].map(i => {
-                    const d = new Date();
-                    d.setMonth(d.getMonth() - i);
-                    return d.toISOString().substring(0, 7); // "YYYY-MM"
-                });
-                const paidMonths = new Set(payments.map(p => p.date.substring(0, 7)));
-                const missedAll3 = last3Months.every(m => !paidMonths.has(m));
-                if (missedAll3 && customer.balance > 0 && payments.length > 0) {
-                    flags.push('3 consecutive missed months');
-                    score -= 50;
-                }
-
-                // clamp to 300–900
-                score = Math.max(300, Math.min(900, score));
-
-                // ── TIER ─────────────────────────────────────────────────────
-                const tier =
-                    score >= 750 ? 'Excellent' :
-                    score >= 600 ? 'Good' :
-                    score >= 450 ? 'Fair' : 'Poor';
-
-                // ── SUGGESTED CREDIT LIMIT ───────────────────────────────────
-                // base = avg monthly spend last 3 months
-                const last3MonthsSpend = credits
-                    .filter(t => {
-                        const d = new Date(t.date);
-                        const mAgo3 = new Date();
-                        mAgo3.setMonth(mAgo3.getMonth() - 3);
-                        return d >= mAgo3;
-                    })
-                    .reduce((s, t) => s + t.amount, 0);
-                const monthlyBase = last3MonthsSpend / 3 || (totalCredit / Math.max(accountAgeMonths, 1));
-                const multiplier = score >= 750 ? 2.0 : score >= 600 ? 1.5 : score >= 450 ? 1.0 : 0.5;
-                const suggestedLimit = Math.round((monthlyBase * multiplier) / 100) * 100;
-
-                return {
-                    score,
-                    tier,
-                    repaymentRatio:   Math.round(repaymentRatio),
-                    speedScore:       Math.round(speedScore),
-                    regularityScore:  Math.round(regularityScore),
-                    balanceRatioScore: Math.round(balanceRatioScore),
-                    ageScore:         Math.round(ageScore),
-                    suggestedLimit,
-                    flags
-                };
-            };
-            
-            const getScoreColor = (score) => {
-                if (score >= 750) return { bg: 'bg-green-100', text: 'text-green-700', bar: '#22c55e', label: 'Excellent' };
-                if (score >= 600) return { bg: 'bg-blue-100',  text: 'text-blue-700',  bar: '#3b82f6', label: 'Good' };
-                if (score >= 450) return { bg: 'bg-yellow-100',text: 'text-yellow-700',bar: '#f59e0b', label: 'Fair' };
-                return              { bg: 'bg-red-100',   text: 'text-red-700',  bar: '#ef4444', label: 'Poor' };
             };
 
             const getSyncStatusColor = () => {
@@ -1182,88 +1027,6 @@
                                                                     <Icon name="Bell" className={`w-4 h-4 ${alertType ? 'animate-bounce' : ''}`} />
                                                                     Send Balance Alert
                                                                 </button>
-
-                                                                {/* Score & Credit Limit Panel */}
-                                                                {(() => {
-                                                                    const score = getCustomerScore(customer);
-                                                                    const color = getScoreColor(score.combinedScore);
-                                                                    const hasTransactions = (customer.transactions || []).length > 0;
-                                                                    const overLimit = customer.creditLimit && customer.balance > customer.creditLimit;
-
-                                                                    return hasTransactions ? (
-                                                                        <div className={`mt-2 p-2 rounded-lg ${color.bg} border border-opacity-30`}>
-                                                                            {/* Score Row */}
-                                                                            <div className="flex justify-between items-center mb-1">
-                                                                                <span className={`text-xs font-bold ${color.text}`}>
-                                                                                    CRIB Score: {score.score} — {color.label}
-                                                                                </span>
-                                                                                <span className="text-xs text-gray-500">
-                                                                                    💳 {score.repaymentRatio}% | ⚡ {score.speedScore}% | 📅 {score.regularityScore}%
-                                                                                </span>
-                                                                            </div>
-
-                                                                            {/* Score Bar */}
-                                                                            <div className="w-full bg-gray-200 rounded-full h-1.5 mb-2">
-                                                                                <div
-                                                                                    className="h-1.5 rounded-full transition-all"
-                                                                                    style={{ width: `${((score.score - 300) / 600) * 100}%`, backgroundColor: color.bar }}
-                                                                                />
-                                                                            </div>
-                                                                            {score.flags.length > 0 && (
-                                                                                <div className="flex flex-wrap gap-1 mt-1">
-                                                                                    {score.flags.map(flag => (
-                                                                                        <span key={flag} className="text-xs bg-red-200 text-red-800 px-1.5 py-0.5 rounded font-semibold">
-                                                                                            ⚑ {flag}
-                                                                                        </span>
-                                                                                    ))}
-                                                                                </div>
-                                                                            )}
-
-                                                                            {/* Credit Limit Row */}
-                                                                            <div className="flex items-center justify-between gap-2">
-                                                                                <span className="text-xs text-gray-600 font-medium">Credit Limit:</span>
-                                                                                {editingLimit?.customerId === customer.id ? (
-                                                                                    <div className="flex gap-1 flex-1 justify-end" onClick={e => e.stopPropagation()}>
-                                                                                        <input
-                                                                                            type="number"
-                                                                                            value={editingLimit.value}
-                                                                                            onChange={e => setEditingLimit({ ...editingLimit, value: e.target.value })}
-                                                                                            className="w-24 p-1 border rounded text-xs text-right"
-                                                                                            autoFocus
-                                                                                        />
-                                                                                        <button
-                                                                                            onClick={() => saveCreditLimit(customer.id, editingLimit.value)}
-                                                                                            className="bg-green-500 text-white px-2 py-1 rounded text-xs"
-                                                                                        >✓</button>
-                                                                                        <button
-                                                                                            onClick={() => setEditingLimit(null)}
-                                                                                            className="bg-gray-300 text-gray-700 px-2 py-1 rounded text-xs"
-                                                                                        >✕</button>
-                                                                                    </div>
-                                                                                ) : (
-                                                                                    <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                                                                                        {customer.creditLimit ? (
-                                                                                            <span className={`text-xs font-bold ${overLimit ? 'text-red-600' : 'text-gray-700'}`}>
-                                                                                                Rs.{formatCurrency(customer.creditLimit)}
-                                                                                                {overLimit && ' ⚠️ Over!'}
-                                                                                            </span>
-                                                                                        ) : (
-                                                                                            <span className="text-xs text-gray-400 italic">
-                                                                                                Suggested: Rs.{formatCurrency(score.suggestedLimit)}
-                                                                                            </span>
-                                                                                        )}
-                                                                                        <button
-                                                                                            onClick={() => setEditingLimit({ customerId: customer.id, value: customer.creditLimit || score.suggestedLimit })}
-                                                                                            className="text-blue-500 hover:text-blue-700"
-                                                                                        >
-                                                                                            <Icon name="Edit2" className="w-3 h-3" />
-                                                                                        </button>
-                                                                                    </div>
-                                                                                )}
-                                                                            </div>
-                                                                        </div>
-                                                                    ) : null;
-                                                                })()}
                                                             </div>
                                                         );
                                                     })
@@ -1571,133 +1334,6 @@
                                                 </div>
                                             </div>
                                         )}
-
-                                        {/* ── CRIB SCORES ── */}
-                                        {(() => {
-                                            const [cribFilter, setCribFilter] = React.useState('All');
-                                            const tiers = ['All', 'Excellent', 'Good', 'Fair', 'Poor'];
-
-                                            const tierMeta = {
-                                                Excellent: { bg: 'bg-green-100',  text: 'text-green-800',  bar: '#22c55e', border: 'border-green-400' },
-                                                Good:      { bg: 'bg-blue-100',   text: 'text-blue-800',   bar: '#3b82f6', border: 'border-blue-400'  },
-                                                Fair:      { bg: 'bg-yellow-100', text: 'text-yellow-800', bar: '#f59e0b', border: 'border-yellow-400'},
-                                                Poor:      { bg: 'bg-red-100',    text: 'text-red-800',    bar: '#ef4444', border: 'border-red-400'   },
-                                            };
-
-                                            const scoredCustomers = customers
-                                                .map(c => ({ ...c, crib: getCustomerScore(c) }))
-                                                .filter(c => (c.transactions || []).length > 0)
-                                                .filter(c => cribFilter === 'All' || c.crib.tier === cribFilter)
-                                                .sort((a, b) => b.crib.score - a.crib.score);
-
-                                            const counts = {
-                                                Excellent: customers.filter(c => getCustomerScore(c).tier === 'Excellent').length,
-                                                Good:      customers.filter(c => getCustomerScore(c).tier === 'Good').length,
-                                                Fair:      customers.filter(c => getCustomerScore(c).tier === 'Fair').length,
-                                                Poor:      customers.filter(c => getCustomerScore(c).tier === 'Poor').length,
-                                            };
-
-                                            return (
-                                                <div className="mt-6">
-                                                    <h3 className="text-lg font-bold text-gray-800 mb-3">🏦 CRIB Score Board</h3>
-
-                                                    {/* Tier filter pills */}
-                                                    <div className="flex flex-wrap gap-2 mb-4">
-                                                        <button
-                                                            onClick={() => setCribFilter('All')}
-                                                            className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
-                                                                cribFilter === 'All'
-                                                                    ? 'bg-gray-700 text-white border-gray-700'
-                                                                    : 'bg-gray-100 text-gray-600 border-gray-300 hover:border-gray-500'
-                                                            }`}
-                                                        >
-                                                            All ({customers.filter(c => (c.transactions||[]).length > 0).length})
-                                                        </button>
-                                                        {tiers.slice(1).map(tier => {
-                                                            const m = tierMeta[tier];
-                                                            const active = cribFilter === tier;
-                                                            return (
-                                                                <button
-                                                                    key={tier}
-                                                                    onClick={() => setCribFilter(tier)}
-                                                                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
-                                                                        active
-                                                                            ? `${m.bg} ${m.text} ${m.border} border-2`
-                                                                            : `bg-gray-50 text-gray-500 border-gray-200 hover:${m.border}`
-                                                                    }`}
-                                                                >
-                                                                    {tier} ({counts[tier]})
-                                                                </button>
-                                                            );
-                                                        })}
-                                                    </div>
-
-                                                    {/* Score cards */}
-                                                    <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-                                                        {scoredCustomers.length === 0 ? (
-                                                            <p className="text-gray-400 text-sm text-center py-6">No customers in this tier</p>
-                                                        ) : scoredCustomers.map(c => {
-                                                            const m = tierMeta[c.crib.tier];
-                                                            const barPct = ((c.crib.score - 300) / 600) * 100;
-                                                            return (
-                                                                <div
-                                                                    key={c.id}
-                                                                    onClick={() => { setSelectedCustomer(c); setActiveTab('customers'); }}
-                                                                    className={`${m.bg} border ${m.border} rounded-lg p-3 cursor-pointer hover:shadow-md transition-all`}
-                                                                >
-                                                                    {/* Top row */}
-                                                                    <div className="flex justify-between items-start mb-1">
-                                                                        <div>
-                                                                            <span className="font-semibold text-gray-800 text-sm">{maskText(c.name)}</span>
-                                                                            <span className="text-xs text-gray-500 ml-2">{maskText(c.mobile)}</span>
-                                                                        </div>
-                                                                        <div className="text-right">
-                                                                            <span className={`text-sm font-bold ${m.text}`}>
-                                                                                CRIB {c.crib.score}
-                                                                            </span>
-                                                                            <span className={`ml-1 text-xs font-bold ${m.text}`}>
-                                                                                — {c.crib.tier}
-                                                                            </span>
-                                                                        </div>
-                                                                    </div>
-
-                                                                    {/* Score bar */}
-                                                                    <div className="w-full bg-white bg-opacity-60 rounded-full h-1.5 mb-2">
-                                                                        <div
-                                                                            className="h-1.5 rounded-full transition-all"
-                                                                            style={{ width: `${barPct}%`, backgroundColor: m.bar }}
-                                                                        />
-                                                                    </div>
-
-                                                                    {/* Factor breakdown */}
-                                                                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-600">
-                                                                        <span>💳 Repay {c.crib.repaymentRatio}%</span>
-                                                                        <span>⚡ Speed {c.crib.speedScore}%</span>
-                                                                        <span>📅 Regular {c.crib.regularityScore}%</span>
-                                                                        <span>⚖️ Balance {c.crib.balanceRatioScore}%</span>
-                                                                        <span>🕐 Age {c.crib.ageScore}%</span>
-                                                                        <span className="ml-auto font-semibold text-gray-700">
-                                                                            Rs.{formatCurrency(c.balance)}
-                                                                        </span>
-                                                                    </div>
-
-                                                                    {/* Flags */}
-                                                                    {c.crib.flags.length > 0 && (
-                                                                        <div className="flex flex-wrap gap-1 mt-1.5">
-                                                                            {c.crib.flags.map(flag => (
-                                                                                <span key={flag} className="text-xs bg-red-200 text-red-800 px-1.5 py-0.5 rounded font-semibold">
-                                                                                    ⚑ {flag}
-                                                                                </span>
-                                                                            ))}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })()}
                                     </div>
 
                                     
