@@ -321,11 +321,11 @@
                         ? 'கடன் கொள்வனவு'
                         : 'கட்டணம்';
 
-                const message =
-            `MRV STORES: ${customer.name}, ${transactionType} Rs.${transaction.amount.toFixed(2)} (${formattedDate}).
-            நிலுவை: Rs.${newBalance.toFixed(2)} (${getCurrentDate()}).
-            
-            நன்றி - MRV STORES`;
+               const message =
+                    `MRV STORES: ${customer.name}, ${transactionType} Rs.${transaction.amount.toFixed(2)}${formattedDate ? ` (${formattedDate})` : ''}.
+                நிலுவை: Rs.${newBalance.toFixed(2)} (${getCurrentDate()}).
+
+                நன்றி - MRV STORES`;
 
                 const smsUrl = `sms:${customer.mobile}?body=${encodeURIComponent(message)}`;
 
