@@ -1571,6 +1571,133 @@
                                                 </div>
                                             </div>
                                         )}
+
+                                        {/* ── CRIB SCORES ── */}
+                                        {(() => {
+                                            const [cribFilter, setCribFilter] = React.useState('All');
+                                            const tiers = ['All', 'Excellent', 'Good', 'Fair', 'Poor'];
+
+                                            const tierMeta = {
+                                                Excellent: { bg: 'bg-green-100',  text: 'text-green-800',  bar: '#22c55e', border: 'border-green-400' },
+                                                Good:      { bg: 'bg-blue-100',   text: 'text-blue-800',   bar: '#3b82f6', border: 'border-blue-400'  },
+                                                Fair:      { bg: 'bg-yellow-100', text: 'text-yellow-800', bar: '#f59e0b', border: 'border-yellow-400'},
+                                                Poor:      { bg: 'bg-red-100',    text: 'text-red-800',    bar: '#ef4444', border: 'border-red-400'   },
+                                            };
+
+                                            const scoredCustomers = customers
+                                                .map(c => ({ ...c, crib: getCustomerScore(c) }))
+                                                .filter(c => (c.transactions || []).length > 0)
+                                                .filter(c => cribFilter === 'All' || c.crib.tier === cribFilter)
+                                                .sort((a, b) => b.crib.score - a.crib.score);
+
+                                            const counts = {
+                                                Excellent: customers.filter(c => getCustomerScore(c).tier === 'Excellent').length,
+                                                Good:      customers.filter(c => getCustomerScore(c).tier === 'Good').length,
+                                                Fair:      customers.filter(c => getCustomerScore(c).tier === 'Fair').length,
+                                                Poor:      customers.filter(c => getCustomerScore(c).tier === 'Poor').length,
+                                            };
+
+                                            return (
+                                                <div className="mt-6">
+                                                    <h3 className="text-lg font-bold text-gray-800 mb-3">🏦 CRIB Score Board</h3>
+
+                                                    {/* Tier filter pills */}
+                                                    <div className="flex flex-wrap gap-2 mb-4">
+                                                        <button
+                                                            onClick={() => setCribFilter('All')}
+                                                            className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                                                                cribFilter === 'All'
+                                                                    ? 'bg-gray-700 text-white border-gray-700'
+                                                                    : 'bg-gray-100 text-gray-600 border-gray-300 hover:border-gray-500'
+                                                            }`}
+                                                        >
+                                                            All ({customers.filter(c => (c.transactions||[]).length > 0).length})
+                                                        </button>
+                                                        {tiers.slice(1).map(tier => {
+                                                            const m = tierMeta[tier];
+                                                            const active = cribFilter === tier;
+                                                            return (
+                                                                <button
+                                                                    key={tier}
+                                                                    onClick={() => setCribFilter(tier)}
+                                                                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                                                                        active
+                                                                            ? `${m.bg} ${m.text} ${m.border} border-2`
+                                                                            : `bg-gray-50 text-gray-500 border-gray-200 hover:${m.border}`
+                                                                    }`}
+                                                                >
+                                                                    {tier} ({counts[tier]})
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+
+                                                    {/* Score cards */}
+                                                    <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+                                                        {scoredCustomers.length === 0 ? (
+                                                            <p className="text-gray-400 text-sm text-center py-6">No customers in this tier</p>
+                                                        ) : scoredCustomers.map(c => {
+                                                            const m = tierMeta[c.crib.tier];
+                                                            const barPct = ((c.crib.score - 300) / 600) * 100;
+                                                            return (
+                                                                <div
+                                                                    key={c.id}
+                                                                    onClick={() => { setSelectedCustomer(c); setActiveTab('customers'); }}
+                                                                    className={`${m.bg} border ${m.border} rounded-lg p-3 cursor-pointer hover:shadow-md transition-all`}
+                                                                >
+                                                                    {/* Top row */}
+                                                                    <div className="flex justify-between items-start mb-1">
+                                                                        <div>
+                                                                            <span className="font-semibold text-gray-800 text-sm">{maskText(c.name)}</span>
+                                                                            <span className="text-xs text-gray-500 ml-2">{maskText(c.mobile)}</span>
+                                                                        </div>
+                                                                        <div className="text-right">
+                                                                            <span className={`text-sm font-bold ${m.text}`}>
+                                                                                CRIB {c.crib.score}
+                                                                            </span>
+                                                                            <span className={`ml-1 text-xs font-bold ${m.text}`}>
+                                                                                — {c.crib.tier}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Score bar */}
+                                                                    <div className="w-full bg-white bg-opacity-60 rounded-full h-1.5 mb-2">
+                                                                        <div
+                                                                            className="h-1.5 rounded-full transition-all"
+                                                                            style={{ width: `${barPct}%`, backgroundColor: m.bar }}
+                                                                        />
+                                                                    </div>
+
+                                                                    {/* Factor breakdown */}
+                                                                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-600">
+                                                                        <span>💳 Repay {c.crib.repaymentRatio}%</span>
+                                                                        <span>⚡ Speed {c.crib.speedScore}%</span>
+                                                                        <span>📅 Regular {c.crib.regularityScore}%</span>
+                                                                        <span>⚖️ Balance {c.crib.balanceRatioScore}%</span>
+                                                                        <span>🕐 Age {c.crib.ageScore}%</span>
+                                                                        <span className="ml-auto font-semibold text-gray-700">
+                                                                            Rs.{formatCurrency(c.balance)}
+                                                                        </span>
+                                                                    </div>
+
+                                                                    {/* Flags */}
+                                                                    {c.crib.flags.length > 0 && (
+                                                                        <div className="flex flex-wrap gap-1 mt-1.5">
+                                                                            {c.crib.flags.map(flag => (
+                                                                                <span key={flag} className="text-xs bg-red-200 text-red-800 px-1.5 py-0.5 rounded font-semibold">
+                                                                                    ⚑ {flag}
+                                                                                </span>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
 
                                     
