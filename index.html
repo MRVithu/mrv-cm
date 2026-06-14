@@ -537,51 +537,144 @@
                 const credits = transactions.filter(t => t.type === 'credit');
                 const payments = transactions.filter(t => t.type === 'payment');
 
-                if (credits.length === 0) return { returnPct: 0, speedScore: 0, combinedScore: 0, suggestedLimit: 0 };
+                if (credits.length === 0) return { 
+                    score: 300, repaymentRatio: 0, speedScore: 0, 
+                    regularityScore: 0, balanceRatio: 0, ageScore: 0,
+                    tier: 'Poor', suggestedLimit: 0, flags: [] 
+                };
 
-                // Repayment Ratio (0–100)
+                // ── FACTOR 1: Repayment Ratio (30%) ──────────────────────────
                 const totalCredit = credits.reduce((s, t) => s + t.amount, 0);
                 const totalPayment = payments.reduce((s, t) => s + t.amount, 0);
                 const repaymentRatio = Math.min((totalPayment / totalCredit) * 100, 100);
 
-                // Speed Score — avg days between each credit and next payment after it
+                // ── FACTOR 2: Repayment Speed (25%) ──────────────────────────
+                // avg days from each credit to the next payment after it
                 let speedDays = [];
                 credits.forEach(cr => {
                     const crDate = new Date(cr.date);
-                    const nextPayment = payments
+                    const nextPay = payments
                         .filter(p => new Date(p.date) >= crDate)
                         .sort((a, b) => new Date(a.date) - new Date(b.date))[0];
-                    if (nextPayment) {
-                        const days = (new Date(nextPayment.date) - crDate) / (1000 * 60 * 60 * 24);
-                        speedDays.push(days);
+                    if (nextPay) {
+                        const days = (new Date(nextPay.date) - crDate) / 86400000;
+                        speedDays.push(Math.min(days, 60));
                     }
                 });
+                const avgDays = speedDays.length > 0 
+                    ? speedDays.reduce((s, d) => s + d, 0) / speedDays.length 
+                    : 60;
+                // 0 days → 100, 60+ days → 0
+                const speedScore = Math.max(0, 100 - (avgDays / 60) * 100);
 
-                // Faster repayment = higher score. 0 days=100, 30 days=50, 60+ days=0
-                const avgDays = speedDays.length > 0 ? speedDays.reduce((s, d) => s + d, 0) / speedDays.length : 60;
-                const speedScore = Math.max(0, Math.min(100, 100 - (avgDays / 60) * 100));
+                // ── FACTOR 3: Purchase Regularity (20%) ──────────────────────
+                // how many months had at least one purchase vs account age
+                const allDates = transactions.map(t => t.date).sort();
+                const firstDate = new Date(allDates[0]);
+                const today = new Date();
+                const accountAgeMonths = Math.max(1,
+                    (today.getFullYear() - firstDate.getFullYear()) * 12 +
+                    (today.getMonth() - firstDate.getMonth())
+                );
+                const activeMonths = new Set(
+                    credits.map(t => t.date.substring(0, 7)) // "YYYY-MM"
+                ).size;
+                const regularityScore = Math.min((activeMonths / accountAgeMonths) * 100, 100);
 
-                // Combined Score (ratio 60% weight, speed 40% weight)
-                const combinedScore = Math.round((repaymentRatio * 0.6) + (speedScore * 0.4));
+                // ── FACTOR 4: Balance Ratio (15%) ────────────────────────────
+                // lower outstanding balance vs total ever credited = better
+                const balanceRatioScore = totalCredit > 0
+                    ? Math.max(0, (1 - (customer.balance / totalCredit)) * 100)
+                    : 100;
 
-                // Suggested Credit Limit based on score + avg monthly spend
-                const monthlyAvg = totalCredit / Math.max(1, credits.length) * 4;
-                const limitMultiplier = combinedScore >= 80 ? 1.5 : combinedScore >= 60 ? 1.0 : combinedScore >= 40 ? 0.7 : 0.4;
-                const suggestedLimit = Math.round((monthlyAvg * limitMultiplier) / 100) * 100;
+                // ── FACTOR 5: Account Age (10%) ──────────────────────────────
+                // capped at 24 months = full score
+                const ageScore = Math.min((accountAgeMonths / 24) * 100, 100);
+
+                // ── WEIGHTED COMBINED (maps 0–100 → 300–900) ─────────────────
+                const rawScore =
+                    (repaymentRatio  * 0.30) +
+                    (speedScore      * 0.25) +
+                    (regularityScore * 0.20) +
+                    (balanceRatioScore * 0.15) +
+                    (ageScore        * 0.10);
+
+                let score = Math.round(300 + (rawScore / 100) * 600);
+
+                // ── NEGATIVE FLAGS (−50 pts each) ────────────────────────────
+                const flags = [];
+
+                // Flag 1: no payment in last 30 days while balance > 0
+                if (customer.balance > 0) {
+                    const thirtyAgo = new Date();
+                    thirtyAgo.setDate(thirtyAgo.getDate() - 30);
+                    const recentPayment = payments.some(p => new Date(p.date) >= thirtyAgo);
+                    if (!recentPayment) {
+                        flags.push('No payment >30 days');
+                        score -= 50;
+                    }
+                }
+
+                // Flag 2: balance exceeds set credit limit
+                if (customer.creditLimit && customer.balance > customer.creditLimit) {
+                    flags.push('Over credit limit');
+                    score -= 50;
+                }
+
+                // Flag 3: 3+ consecutive months with no payment
+                const last3Months = [0, 1, 2].map(i => {
+                    const d = new Date();
+                    d.setMonth(d.getMonth() - i);
+                    return d.toISOString().substring(0, 7); // "YYYY-MM"
+                });
+                const paidMonths = new Set(payments.map(p => p.date.substring(0, 7)));
+                const missedAll3 = last3Months.every(m => !paidMonths.has(m));
+                if (missedAll3 && customer.balance > 0 && payments.length > 0) {
+                    flags.push('3 consecutive missed months');
+                    score -= 50;
+                }
+
+                // clamp to 300–900
+                score = Math.max(300, Math.min(900, score));
+
+                // ── TIER ─────────────────────────────────────────────────────
+                const tier =
+                    score >= 750 ? 'Excellent' :
+                    score >= 600 ? 'Good' :
+                    score >= 450 ? 'Fair' : 'Poor';
+
+                // ── SUGGESTED CREDIT LIMIT ───────────────────────────────────
+                // base = avg monthly spend last 3 months
+                const last3MonthsSpend = credits
+                    .filter(t => {
+                        const d = new Date(t.date);
+                        const mAgo3 = new Date();
+                        mAgo3.setMonth(mAgo3.getMonth() - 3);
+                        return d >= mAgo3;
+                    })
+                    .reduce((s, t) => s + t.amount, 0);
+                const monthlyBase = last3MonthsSpend / 3 || (totalCredit / Math.max(accountAgeMonths, 1));
+                const multiplier = score >= 750 ? 2.0 : score >= 600 ? 1.5 : score >= 450 ? 1.0 : 0.5;
+                const suggestedLimit = Math.round((monthlyBase * multiplier) / 100) * 100;
 
                 return {
-                    repaymentRatio: Math.round(repaymentRatio),
-                    speedScore: Math.round(speedScore),
-                    combinedScore,
-                    suggestedLimit
+                    score,
+                    tier,
+                    repaymentRatio:   Math.round(repaymentRatio),
+                    speedScore:       Math.round(speedScore),
+                    regularityScore:  Math.round(regularityScore),
+                    balanceRatioScore: Math.round(balanceRatioScore),
+                    ageScore:         Math.round(ageScore),
+                    suggestedLimit,
+                    flags
                 };
             };
-
+            
             const getScoreColor = (score) => {
-                if (score >= 80) return { bg: 'bg-green-100', text: 'text-green-700', bar: '#22c55e', label: 'Excellent' };
-                if (score >= 60) return { bg: 'bg-blue-100', text: 'text-blue-700', bar: '#3b82f6', label: 'Good' };
-                if (score >= 40) return { bg: 'bg-yellow-100', text: 'text-yellow-700', bar: '#f59e0b', label: 'Fair' };
-                return { bg: 'bg-red-100', text: 'text-red-700', bar: '#ef4444', label: 'Poor' };
+                if (score >= 750) return { bg: 'bg-green-100', text: 'text-green-700', bar: '#22c55e', label: 'Excellent' };
+                if (score >= 600) return { bg: 'bg-blue-100',  text: 'text-blue-700',  bar: '#3b82f6', label: 'Good' };
+                if (score >= 450) return { bg: 'bg-yellow-100',text: 'text-yellow-700',bar: '#f59e0b', label: 'Fair' };
+                return              { bg: 'bg-red-100',   text: 'text-red-700',  bar: '#ef4444', label: 'Poor' };
             };
 
             const getSyncStatusColor = () => {
@@ -1102,10 +1195,10 @@
                                                                             {/* Score Row */}
                                                                             <div className="flex justify-between items-center mb-1">
                                                                                 <span className={`text-xs font-bold ${color.text}`}>
-                                                                                    Return Score: {score.combinedScore}% — {color.label}
+                                                                                    CRIB Score: {score.score} — {color.label}
                                                                                 </span>
                                                                                 <span className="text-xs text-gray-500">
-                                                                                    💳 {score.repaymentRatio}% | ⚡ {score.speedScore}%
+                                                                                    💳 {score.repaymentRatio}% | ⚡ {score.speedScore}% | 📅 {score.regularityScore}%
                                                                                 </span>
                                                                             </div>
 
@@ -1113,9 +1206,18 @@
                                                                             <div className="w-full bg-gray-200 rounded-full h-1.5 mb-2">
                                                                                 <div
                                                                                     className="h-1.5 rounded-full transition-all"
-                                                                                    style={{ width: `${score.combinedScore}%`, backgroundColor: color.bar }}
+                                                                                    style={{ width: `${((score.score - 300) / 600) * 100}%`, backgroundColor: color.bar }}
                                                                                 />
                                                                             </div>
+                                                                            {score.flags.length > 0 && (
+                                                                                <div className="flex flex-wrap gap-1 mt-1">
+                                                                                    {score.flags.map(flag => (
+                                                                                        <span key={flag} className="text-xs bg-red-200 text-red-800 px-1.5 py-0.5 rounded font-semibold">
+                                                                                            ⚑ {flag}
+                                                                                        </span>
+                                                                                    ))}
+                                                                                </div>
+                                                                            )}
 
                                                                             {/* Credit Limit Row */}
                                                                             <div className="flex items-center justify-between gap-2">
