@@ -15,7 +15,7 @@
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- Firebase -->
@@ -1286,7 +1286,7 @@
                                             <div className="bg-gradient-to-br from-orange-50 to-orange-100 border-2 border-orange-300 rounded-lg p-4 sm:p-5 shadow-md hover:shadow-lg transition-shadow">
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex-1">
-                                                        <p className="text-orange-700 font-bold text-xs sm:text-sm mb-2">⚡ Warning (>14 Days)</p>
+                                                        <p className="text-orange-700 font-bold text-xs sm:text-sm mb-2">⚡ Warning ({'>'}14 Days)</p>
                                                         <p className="text-2xl sm:text-3xl font-bold text-orange-900">{getAlertCounts.orangeCount}</p>
                                                         <p className="text-xs text-orange-600 mt-2 font-semibold">Rs.{formatCurrency(getAlertCounts.orangeAmount)}</p>
                                                     </div>
@@ -1298,7 +1298,7 @@
                                             <div className="bg-gradient-to-br from-red-50 to-red-100 border-2 border-red-300 rounded-lg p-4 sm:p-5 shadow-md hover:shadow-lg transition-shadow">
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex-1">
-                                                        <p className="text-red-700 font-bold text-xs sm:text-sm mb-2">⚠️ Critical (>30 Days)</p>
+                                                        <p className="text-red-700 font-bold text-xs sm:text-sm mb-2">⚠️ Critical ({'>'}30 Days)</p>
                                                         <p className="text-2xl sm:text-3xl font-bold text-red-900">{getAlertCounts.redCount}</p>
                                                         <p className="text-xs text-red-600 mt-2 font-semibold">Rs.{formatCurrency(getAlertCounts.redAmount)}</p>
                                                     </div>
